@@ -14,7 +14,8 @@ const api = axios.create({
 // Request Interceptor: Add Authorization token to every outgoing request
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('accessToken'); // We'll store the JWT here after login
+    // FIX: Retrieve the latest token from localStorage just before each request
+    const token = localStorage.getItem('accessToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

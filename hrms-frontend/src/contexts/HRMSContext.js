@@ -17,6 +17,11 @@ export const HRMSProvider = ({ children }) => {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
   const [leaveRequests, setLeaveRequests] = useState([]);
   // Add other data states here as needed
+  const [timesheets, setTimesheets] = useState([]);
+  const [goals, setGoals] = useState([]);
+  const [reviews, setReviews] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
+  const [recognitions, setRecognitions] = useState([]);
   
   const showMessage = useCallback((text, type = 'info', actions = []) => {
     setMessageBox({ message: text, type, actions, onClose: () => setMessageBox({ message: '', type: 'info', actions: [], onClose: () => {} }) });
@@ -39,7 +44,7 @@ export const HRMSProvider = ({ children }) => {
   // Effect to handle session restoration from token
   useEffect(() => {
     if (accessToken) {
-      api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+      // No need to set Authorization header here, as the interceptor will handle it on each request.
       setIsLoading(true);
       api.get('/auth/profile').then(response => {
         setUser(response.data);
@@ -128,18 +133,43 @@ export const HRMSProvider = ({ children }) => {
 
   const fetchEmployees = useCallback(() => fetchData('/employees', setEmployees), [fetchData]);
   const fetchLeaveRequests = useCallback(() => fetchData('/leave-requests', setLeaveRequests), [fetchData]);
+  const fetchTimesheets = useCallback(() => fetchData('/timesheets', setTimesheets), [fetchData]);
+  const fetchGoals = useCallback(() => fetchData('/goals', setGoals), [fetchData]);
+  const fetchReviews = useCallback(() => fetchData('/reviews', setReviews), [fetchData]);
+  const fetchAnnouncements = useCallback(() => fetchData('/announcements', setAnnouncements), [fetchData]);
+  const fetchRecognitions = useCallback(() => fetchData('/recognitions', setRecognitions), [fetchData]);
+
+  // Initial data loading when user is authenticated
+  useEffect(() => {
+    if (user?.tenantId) {
+      fetchEmployees();
+      fetchLeaveRequests();
+      fetchTimesheets();
+      fetchGoals();
+      fetchReviews();
+      fetchAnnouncements();
+      fetchRecognitions();
+    }
+  }, [user, fetchEmployees, fetchLeaveRequests, fetchTimesheets, fetchGoals, fetchReviews, fetchAnnouncements, fetchRecognitions]);
+
 
   const value = useMemo(() => ({
     user, tenant, isLoading, currentPage, accessToken, employees, leaveRequests, selectedEmployeeId, messageBox,
+    timesheets, goals, reviews, announcements, recognitions, // Include new states
     setCurrentPage, setSelectedEmployeeId,
     login, logout, setupTenantAndAdmin, showMessage,
     postData, putData, deleteData, fetchData,
     fetchEmployees, fetchLeaveRequests,
+    fetchTimesheets, fetchGoals, fetchReviews, fetchAnnouncements, fetchRecognitions, // Include new fetch functions
+    setTimesheets, setGoals, setReviews, setAnnouncements, setRecognitions, // Include setters for direct manipulation in UI if needed
   }), [
     user, tenant, isLoading, currentPage, accessToken, employees, leaveRequests, selectedEmployeeId, messageBox,
+    timesheets, goals, reviews, announcements, recognitions, // Dependencies for new states
     login, logout, setupTenantAndAdmin, showMessage,
     postData, putData, deleteData, fetchData,
     fetchEmployees, fetchLeaveRequests,
+    fetchTimesheets, fetchGoals, fetchReviews, fetchAnnouncements, fetchRecognitions, // Dependencies for new fetch functions
+    setCurrentPage, setSelectedEmployeeId, setTimesheets, setGoals, setReviews, setAnnouncements, setRecognitions // Dependencies for setters
   ]);
 
   return (
