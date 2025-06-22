@@ -1,0 +1,41 @@
+### Create Goal (POST)
+POST http://localhost:3000/goals
+Content-Type: application/json
+
+{
+    "employeeId": "16892c44-8a73-4cfb-a97e-ef90fa6a6e34",  
+    "objective": "Complete Q3 Sales Target",
+    "description": "Achieve 120% of sales quota for the third quarter.",
+    "dueDate": "2025-09-30",
+    "category": "Performance",
+    "priority": "High",
+    "status": "In Progress",
+    "keyResults": ["Close 5 new enterprise deals", "Generate 100 new qualified leads"],
+    "tenantId": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+}
+
+### Get All Goals (GET)
+GET http://localhost:3000/goals
+
+### Get Goals for Specific Employee (GET)
+GET http://localhost:3000/goals?employeeId=16892c44-8a73-4cfb-a97e-ef90fa6a6e34
+
+### Get Goals by Status (GET)
+GET http://localhost:3000/goals?status=In Progress
+
+### Update Goal (PUT)
+PUT http://localhost:3000/goals/dfdf90b9-1536-4526-877f-c1f85b60a5d8
+Content-Type: application/json
+
+{
+    "status": "Completed",
+    "tenantId": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+}
+
+### Delete Goal (DELETE)
+DELETE http://localhost:3000/goals/dfdf90b9-1536-4526-877f-c1f85b60a5d8
+Content-Type: application/json
+
+{
+    "tenantId": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+}

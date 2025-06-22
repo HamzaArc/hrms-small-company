@@ -1,0 +1,40 @@
+### Create Recognition (POST)
+POST http://localhost:3000/recognitions
+Content-Type: application/json
+
+{
+    "recipientId": "16892c44-8a73-4cfb-a97e-ef90fa6a6e34",  
+    "category": "teamwork",
+    "value": "collaboration",
+    "message": "Outstanding teamwork on the Q2 project, your collaboration made a huge difference!",
+    "givenBy": "John Doe",
+    "isPublic": true,
+    "tenantId": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+}
+
+### Get All Recognitions (GET)
+GET http://localhost:3000/recognitions
+
+### Get Recognitions for Specific Recipient (GET)
+GET http://localhost:3000/recognitions?recipientId=16892c44-8a73-4cfb-a97e-ef90fa6a6e34
+
+### Get Recognitions by Category (GET)
+GET http://localhost:3000/recognitions?category=teamwork
+
+### Update Recognition (PUT)
+PUT http://localhost:3000/recognitions/f96493fe-7600-4ccd-9de8-8240b7511a02
+Content-Type: application/json
+
+{
+    "message": "Updated: Truly inspiring leadership and dedication on the Q2 project!",
+    "isPublic": false,
+    "tenantId": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+}
+
+### Delete Recognition (DELETE)
+DELETE http://localhost:3000/recognitions/f96493fe-7600-4ccd-9de8-8240b7511a02
+Content-Type: application/json
+
+{
+    "tenantId": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+}

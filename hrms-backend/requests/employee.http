@@ -1,0 +1,25 @@
+### Create Employee
+POST http://localhost:3000/employees
+Content-Type: application/json
+
+{
+    "firstName": "Alice",
+    "lastName": "Smith",
+    "email": "alice.smith@example.com",
+    "phone": "+1234567890",
+    "address": "123 Main St",
+    "role": "Software Engineer",
+    "department": "Engineering",
+    "hireDate": "2023-01-01",
+    "status": "Active",
+    "vacationBalance": 15,
+    "sickBalance": 10,
+    "personalBalance": 5,
+    "tenantId": "6adb482a-7b4e-4dc7-8220-fd0378132646"
+}
+
+### Get All Employees
+GET http://localhost:3000/employees
+
+### Get Specific Employee by ID (Replace with an actual ID after creating one)
+GET http://localhost:3000/employees/

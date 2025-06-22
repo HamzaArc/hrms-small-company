@@ -1,0 +1,80 @@
+### Upload Document (POST - with file)
+POST http://localhost:3000/documents
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="example.pdf"
+Content-Type: application/pdf
+
+< "C:\Users\harchane\Downloads\m1.png"
+// IMPORTANT: Replace './path/to/your/local/example.pdf' with a real path to a PDF/JPG/PNG file on your computer.
+// Make sure the file exists!
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="employeeId"
+
+16892c44-8a73-4cfb-a97e-ef90fa6a6e34
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="name"
+
+Employee Contract 2025
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="type"
+
+Contract
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="uploadDate"
+
+2025-06-21
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="tenantId"
+
+a1b2c3d4-e5f6-7890-1234-567890abcdef
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+
+### Create Document Metadata (POST - without file, providing fileUrl)
+// Use this if you don't want to test actual file uploads yet or for external files
+POST http://localhost:3000/documents
+Content-Type: application/json
+
+{
+    "employeeId": "16892c44-8a73-4cfb-a97e-ef90fa6a6e34",
+    "name": "ID Verification",
+    "type": "Identification",
+    "uploadDate": "2025-01-15",
+    "expiryDate": "2028-01-15",
+    "status": "Active",
+    "fileUrl": "https://example.com/id/employee-id.jpg",
+    "notes": "Passport copy for verification",
+    "tenantId": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+}
+
+### Get All Documents (GET)
+GET http://localhost:3000/documents
+
+### Get Documents for Specific Employee (GET)
+GET http://localhost:3000/documents?employeeId=16892c44-8a73-4cfb-a97e-ef90fa6a6e34
+
+### Get Documents by Type (GET)
+GET http://localhost:3000/documents?type=Contract
+
+### Update Document (PUT)
+PUT http://localhost:3000/documents/72f1c613-345a-4f38-99fe-31a55570e3a5
+Content-Type: application/json
+
+{
+    "name": "Employee Contract (Signed)",
+    "status": "Signed",
+    "signedDate": "2025-06-22",
+    "notes": "Contract signed by employee and HR.",
+    "tenantId": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+}
+
+### Delete Document (DELETE)
+DELETE http://localhost:3000/documents/72f1c613-345a-4f38-99fe-31a55570e3a5
+Content-Type: application/json
+
+{
+    "tenantId": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+}

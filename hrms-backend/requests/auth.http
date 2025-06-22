@@ -1,0 +1,42 @@
+### 1. Setup Initial Tenant and Admin User (Call this FIRST)
+POST http://localhost:3000/auth/setup-tenant-admin
+Content-Type: application/json
+
+{
+    "tenantName": "test company 1",
+    "adminEmail": "hamza@gmail.com",
+    "adminPassword": "fraise" 
+}
+
+### 2. Login as the Admin User (after setup)
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{
+    "email": "hamza@gmail.com",
+    "password": "fraise",
+    "tenantId": "28723d68-0042-48d5-8c7e-13ceb7481cb9" 
+}
+
+### 3. Register a New Employee User (after setup/login)
+// Optional: link to an existing employeeId if you have one created
+POST http://localhost:3000/auth/register
+Content-Type: application/json
+
+{
+    "tenantId": "6adb482a-7b4e-4dc7-8220-fd0378132646",
+    "email": "john.doe@acmecorp.com",
+    "password": "employee123",
+    "role": "employee",
+    "employeeId": "3e3fa8d2-35e4-47be-8e32-0e84e88ad769"
+}
+
+### 4. Login as the New Employee User (after registration)
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{
+    "email": "john.doe@acmecorp.com",
+    "password": "employee123",
+    "tenantId": "6adb482a-7b4e-4dc7-8220-fd0378132646"
+}

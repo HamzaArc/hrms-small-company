@@ -1,0 +1,46 @@
+### Create Review (POST)
+POST http://localhost:3000/reviews
+Content-Type: application/json
+
+{
+    "employeeId": "16892c44-8a73-4cfb-a97e-ef90fa6a6e34",  
+    "reviewer": "Sarah HR Manager",
+    "reviewPeriod": "Q2-2025",
+    "rating": 4.2,
+    "ratings": {
+        "overall": 4.2,
+        "performance": 4,
+        "communication": 5,
+        "teamwork": 4,
+        "innovation": 4.5
+    },
+    "strengths": "Consistently exceeds expectations in project delivery. Strong team player.",
+    "improvements": "Could take on more leadership responsibilities.",
+    "comments": "Overall outstanding performance this quarter. Ready for new challenges.",
+    "linkedGoals": ["f78e1a77-3979-45aa-bab7-7923aa3359d8"],  
+    "tenantId": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+}
+
+### Get All Reviews (GET)
+GET http://localhost:3000/reviews
+
+### Get Reviews for Specific Employee (GET)
+GET http://localhost:3000/reviews?employeeId=16892c44-8a73-4cfb-a97e-ef90fa6a6e34
+
+### Update Review (PUT)
+PUT http://localhost:3000/reviews/2e5fe2c9-3b24-4957-83f9-2bccf9b3f01a
+Content-Type: application/json
+
+{
+    "rating": 4.5,
+    "comments": "Updated comments: Exceptional growth noticed.",
+    "tenantId": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+}
+
+### Delete Review (DELETE)
+DELETE http://localhost:3000/reviews/2e5fe2c9-3b24-4957-83f9-2bccf9b3f01a
+Content-Type: application/json
+
+{
+    "tenantId": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+}

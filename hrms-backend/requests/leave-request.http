@@ -1,0 +1,31 @@
+### Submit Leave Request (POST)
+POST http://localhost:3000/leave-requests
+Content-Type: application/json
+
+{
+    "employeeId": "16892c44-8a73-4cfb-a97e-ef90fa6a6e34",  
+    "type": "Vacation",                      
+    "startDate": "2025-08-01",
+    "endDate": "2025-08-05",
+    "reason": "Summer holiday",
+    "tenantId": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+}
+
+### Get All Leave Requests (GET)
+GET http://localhost:3000/leave-requests
+
+### Approve a Leave Request (PUT)
+PUT http://localhost:3000/leave-requests/858c412a-ef7b-48ea-a132-a6200835fce8/status
+Content-Type: application/json
+
+{
+    "status": "Approved"
+}
+
+### Reject a Leave Request (PUT)
+PUT http://localhost:3000/leave-requests/858c412a-ef7b-48ea-a132-a6200835fce8/status
+Content-Type: application/json
+
+{
+    "status": "Rejected"
+}

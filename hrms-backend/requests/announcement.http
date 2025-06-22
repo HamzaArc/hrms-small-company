@@ -1,0 +1,43 @@
+### Create Announcement (POST)
+POST http://localhost:3000/announcements
+Content-Type: application/json
+
+{
+    "title": "Company Picnic Day",
+    "content": "Join us for our annual company picnic at Central Park on July 20th!",
+    "category": "event",
+    "priority": "normal",
+    "audience": "all",
+    "publishDate": "2025-06-22",
+    "expiryDate": "2025-07-20",
+    "author": "HR Team",
+    "isActive": true,
+    "tenantId": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+}
+
+### Get All Announcements (GET)
+GET http://localhost:3000/announcements
+
+### Get Announcements by Category (GET)
+GET http://localhost:3000/announcements?category=event
+
+### Get Announcements by Priority (GET)
+GET http://localhost:3000/announcements?priority=high
+
+### Update Announcement (PUT)
+PUT http://localhost:3000/announcements/fa6a3c43-cc6f-40f7-ad73-50a705c62010
+Content-Type: application/json
+
+{
+    "content": "Updated: Join us on July 20th at Central Park, starting at 10 AM!",
+    "priority": "high",
+    "tenantId": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+}
+
+### Delete Announcement (DELETE)
+DELETE http://localhost:3000/announcements/fa6a3c43-cc6f-40f7-ad73-50a705c62010
+Content-Type: application/json
+
+{
+    "tenantId": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+}
