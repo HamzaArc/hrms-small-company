@@ -3,156 +3,110 @@ import { useHRMS } from '../../contexts/HRMSContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import Button from '../common/Button';
 import Input from '../common/Input';
-import Card from '../common/Card';
+import { Briefcase, Mail, Lock, User, Building } from 'lucide-react';
+
+const Logo = ({ className }) => (
+  <div className={`flex items-center space-x-3 ${className}`}>
+    <div className="bg-white/20 p-2 rounded-lg">
+      <Briefcase className="w-6 h-6 text-white" />
+    </div>
+    <span className="text-2xl font-bold tracking-tight text-white">HRMS</span>
+  </div>
+);
 
 const AuthPage = () => {
-  const { login, showMessage } = useHRMS();
+  const { login, setupTenantAndAdmin } = useHRMS();
   const { t } = useLanguage();
 
-  const [isLoginMode, setIsLoginMode] = useState(true); // Toggle between login and setup
-  const [tenantName, setTenantName] = useState(''); // For setup
-  const [adminEmail, setAdminEmail] = useState(''); // For setup
-  const [adminPassword, setAdminPassword] = useState(''); // For setup
+  const [isLoginMode, setIsLoginMode] = useState(true);
+  
+  const [tenantName, setTenantName] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
 
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  const [loginTenantId, setLoginTenantId] = useState(''); // For login
-
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSetupSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    try {
-      const response = await fetch('http://localhost:3000/auth/setup-tenant-admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantName, adminEmail, adminPassword })
-      });
-      const data = await response.json();
-
-      if (response.ok) {
-        showMessage(data.message || 'Tenant and admin user created successfully!', 'success');
-        // Automatically log in the admin user after successful setup
+    const result = await setupTenantAndAdmin({ tenantName, adminEmail, adminPassword });
+    if (result) {
         setLoginEmail(adminEmail);
-        setLoginPassword(adminPassword);
-        setLoginTenantId(data.tenant.id); // Get the newly created tenant ID
-        setIsLoginMode(true); // Switch to login mode
-      } else {
-        showMessage(data.message || 'Failed to set up tenant.', 'error');
-      }
-    } catch (error) {
-      console.error('Setup error:', error);
-      showMessage('Network error during setup. Please try again.', 'error');
-    } finally {
-      setIsLoading(false);
+        setIsLoginMode(true);
     }
+    setIsLoading(false);
   };
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    const success = await login(loginEmail, loginPassword, loginTenantId);
+    await login(loginEmail, loginPassword);
     setIsLoading(false);
-    if (success) {
-      // login function in context already handles redirection to dashboard and message
-    }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <Card className="w-full max-w-md">
-        <h2 className="text-2xl font-bold text-gray-800 text-center mb-6">
-          {isLoginMode ? 'Login to HRMS' : 'Setup Your HRMS'}
-        </h2>
+    <div className="min-h-screen w-full lg:grid lg:grid-cols-2">
+      {/* --- LEFT VISUAL PANEL --- */}
+      <div className="relative hidden h-full flex-col bg-indigo-600 p-12 text-white lg:flex">
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-700 to-indigo-900" />
+        <Logo className="relative z-20" />
+        <div className="relative z-20 my-auto">
+          <h1 className="text-5xl font-bold tracking-tighter">
+            {t('auth.panelTitle')}
+          </h1>
+          <p className="mt-4 text-lg text-indigo-200 max-w-md">
+            {t('auth.panelSubtitle')}
+          </p>
+        </div>
+        <div className="relative z-20 mt-auto">
+          <p className="text-sm text-indigo-300">&copy; {new Date().getFullYear()} HRMS Inc. All rights reserved.</p>
+        </div>
+      </div>
 
-        {isLoginMode ? (
-          /* Login Form */
-          <form onSubmit={handleLoginSubmit} className="space-y-4">
-            <Input
-              label="Tenant ID"
-              type="text"
-              value={loginTenantId}
-              onChange={(e) => setLoginTenantId(e.target.value)}
-              placeholder="Enter your Tenant ID"
-              required
-            />
-            <Input
-              label="Email"
-              type="email"
-              value={loginEmail}
-              onChange={(e) => setLoginEmail(e.target.value)}
-              placeholder="Enter your email"
-              required
-            />
-            <Input
-              label="Password"
-              type="password"
-              value={loginPassword}
-              onChange={(e) => setLoginPassword(e.target.value)}
-              placeholder="Enter your password"
-              required
-            />
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Logging In...' : 'Login'}
-            </Button>
-            <p className="text-center text-sm text-gray-600 mt-4">
-              First time here?{' '}
-              <button
-                type="button"
-                onClick={() => setIsLoginMode(false)}
-                className="text-blue-600 hover:text-blue-800 font-medium"
-              >
-                Setup New Company
+      {/* --- RIGHT FORM PANEL --- */}
+      <div className="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50">
+        <div className="w-full max-w-sm space-y-8">
+          <div>
+            <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
+              {isLoginMode ? t('auth.loginTitle') : t('auth.setupTitle')}
+            </h2>
+            <p className="mt-2 text-center text-sm text-gray-600">
+              {isLoginMode ? t('auth.noAccount') : t('auth.hasAccount')}{' '}
+              <button onClick={() => setIsLoginMode(!isLoginMode)} className="font-medium text-indigo-600 hover:text-indigo-500 focus:outline-none">
+                {isLoginMode ? t('auth.setupLink') : t('auth.loginLink')}
               </button>
             </p>
-          </form>
-        ) : (
-          /* Setup Form */
-          <form onSubmit={handleSetupSubmit} className="space-y-4">
-            <p className="text-sm text-gray-600 mb-4">
-              This will create your company (tenant) and an initial admin user account.
-            </p>
-            <Input
-              label="Company Name"
-              type="text"
-              value={tenantName}
-              onChange={(e) => setTenantName(e.target.value)}
-              placeholder="e.g., Acme Corp"
-              required
-            />
-            <Input
-              label="Admin Email"
-              type="email"
-              value={adminEmail}
-              onChange={(e) => setAdminEmail(e.target.value)}
-              placeholder="Your admin email"
-              required
-            />
-            <Input
-              label="Admin Password"
-              type="password"
-              value={adminPassword}
-              onChange={(e) => setAdminPassword(e.target.value)}
-              placeholder="Choose a strong password"
-              required
-            />
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Setting Up...' : 'Setup Company & Admin'}
-            </Button>
-            <p className="text-center text-sm text-gray-600 mt-4">
-              Already have an account?{' '}
-              <button
-                type="button"
-                onClick={() => setIsLoginMode(true)}
-                className="text-blue-600 hover:text-blue-800 font-medium"
-              >
-                Login
-              </button>
-            </p>
-          </form>
-        )}
-      </Card>
+          </div>
+
+          {isLoginMode ? (
+            <form onSubmit={handleLoginSubmit} className="mt-8 space-y-6">
+              <Input label="Email" name="email" type="email" placeholder="name@company.com" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} icon={<Mail />} />
+              <Input label="Password" name="password" type="password" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} />
+              <div className="flex items-center justify-between">
+                <div className="text-sm">
+                  <a href="#" className="font-medium text-indigo-600 hover:text-indigo-500">
+                    Forgot your password?
+                  </a>
+                </div>
+              </div>
+              <Button type="submit" className="w-full justify-center" disabled={isLoading}>
+                {isLoading ? t('auth.loggingIn') : t('auth.loginButton')}
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={handleSetupSubmit} className="mt-8 space-y-6">
+             <Input label="Company Name" name="companyName" placeholder="e.g. TechCorp Solutions" required value={tenantName} onChange={(e) => setTenantName(e.target.value)} icon={<Building />} />
+             <Input label="Your Admin Email" name="adminEmail" type="email" placeholder="name@company.com" required value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} icon={<User />} />
+             <Input label="Admin Password" name="adminPassword" type="password" required value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} />
+              <Button type="submit" className="w-full justify-center" disabled={isLoading}>
+                {isLoading ? t('auth.settingUp') : t('auth.setupButton')}
+              </Button>
+            </form>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

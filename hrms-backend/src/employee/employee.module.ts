@@ -1,17 +1,19 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { EmployeeService } from './employee.service';
 import { EmployeeController } from './employee.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Employee } from './employee.entity';
-import { TenantModule } from '../tenant/tenant.module'; // This import will now work!
+import { UserModule } from '../user/user.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Employee]), // This line registers the Employee entity with TypeORM
-    TenantModule, // Import TenantModule
+    TypeOrmModule.forFeature([Employee]),
+    UserModule,
+    forwardRef(() => AuthModule),
   ],
   providers: [EmployeeService],
   controllers: [EmployeeController],
-  exports: [EmployeeService], // Export EmployeeService if other modules need to use it
+  exports: [EmployeeService],
 })
 export class EmployeeModule {}

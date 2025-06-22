@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { useHRMS } from '../../contexts/HRMSContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Menu, Bell, User, LogOut, Globe } from 'lucide-react';
-import Select from '../common/Select';
 import Card from '../common/Card';
 import Button from '../common/Button';
 
-const Header = ({ toggleSidebar }) => {
-  const { notifications, setNotifications, setCurrentPage, setSelectedEmployeeId, employees, showMessage } = useHRMS();
+const Header = ({ toggleSidebar, logout }) => {
+  // FIX: Provide a default empty array for notifications to prevent crash
+  const { notifications = [], setNotifications, setCurrentPage, user } = useHRMS();
   const { t, currentLang, setCurrentLang } = useLanguage();
   const [showNotifications, setShowNotifications] = useState(false);
 
@@ -15,7 +15,6 @@ const Header = ({ toggleSidebar }) => {
 
   const handleNotificationClick = () => {
     setShowNotifications(!showNotifications);
-    // Mark all as read when opening
     if (!showNotifications) {
       setNotifications(notifications.map(n => ({ ...n, read: true })));
     }
@@ -24,18 +23,13 @@ const Header = ({ toggleSidebar }) => {
   const handleClearAll = () => {
     setNotifications([]);
     setShowNotifications(false);
-    showMessage(t('header.noNotifications'), 'success');
   };
-
+  
   const handleMyProfile = () => {
-    // Set to first employee (Alice Smith) as logged-in user
-    setSelectedEmployeeId(employees[0].id);
-    setCurrentPage('myProfile');
-  };
-
-  const handleLogout = () => {
-    showMessage('Logged out successfully', 'success');
-    // In a real app, this would handle authentication
+    // We already have the user object in context, so no need to find it again
+    if (user) {
+      setCurrentPage('myProfile');
+    }
   };
 
   const languageOptions = [
@@ -59,7 +53,6 @@ const Header = ({ toggleSidebar }) => {
         </div>
 
         <div className="flex items-center space-x-4">
-          {/* Language Switcher */}
           <div className="flex items-center space-x-2">
             <Globe className="w-5 h-5 text-gray-600" />
             <select
@@ -73,7 +66,6 @@ const Header = ({ toggleSidebar }) => {
             </select>
           </div>
 
-          {/* Notifications */}
           <div className="relative">
             <button
               onClick={handleNotificationClick}
@@ -87,7 +79,6 @@ const Header = ({ toggleSidebar }) => {
               )}
             </button>
 
-            {/* Notifications Dropdown */}
             {showNotifications && (
               <div className="absolute right-0 mt-2 w-80 z-50">
                 <Card className="max-h-96 overflow-y-auto">
@@ -130,7 +121,6 @@ const Header = ({ toggleSidebar }) => {
             )}
           </div>
 
-          {/* My Profile */}
           <Button
             onClick={handleMyProfile}
             variant="outline"
@@ -141,9 +131,8 @@ const Header = ({ toggleSidebar }) => {
             <span>{t('header.myProfile')}</span>
           </Button>
 
-          {/* Logout */}
           <button
-            onClick={handleLogout}
+            onClick={logout}
             className="p-2 text-gray-600 hover:text-gray-800"
             title={t('header.logout')}
           >
