@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+// hrms-frontend/src/components/pages/TimesheetEntryForm.js
+import React, { useState, useEffect, useMemo } from 'react'; // Added useMemo
 import { useHRMS } from '../../contexts/HRMSContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Clock, Calendar, User, FileText, Plus, Save } from 'lucide-react';
@@ -10,62 +11,80 @@ import Card from '../common/Card';
 
 const TimesheetEntryForm = () => {
   const { 
+    user,
     employees, 
-    timesheets, 
-    setTimesheets, 
+    fetchTimesheets,
+    postData,
     setCurrentPage,
     showMessage 
   } = useHRMS();
   const { t } = useLanguage();
 
-  const [entryMode, setEntryMode] = useState('single'); // single or week
+  const [entryMode, setEntryMode] = useState('single');
   const [formData, setFormData] = useState({
     employeeId: '',
-    date: new Date().toISOString().split('T')[0],
+    date: new Date().toISOString().split('T')[0], // This date will now represent the start of the selected week in 'week' mode
     hours: '',
     description: ''
   });
 
   const [weekData, setWeekData] = useState([]);
   const [errors, setErrors] = useState({});
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Initialize week data when switching to week mode
-  useEffect(() => {
-    if (entryMode === 'week' && formData.employeeId) {
-      initializeWeekData();
-    }
-  }, [entryMode, formData.employeeId]);
+  const userIsAdmin = useMemo(() => user?.role === 'admin', [user]);
 
-  const activeEmployees = employees
+  const activeEmployees = useMemo(() => employees
     .filter(emp => emp.status === 'Active')
     .map(emp => ({
       value: emp.id,
       label: `${emp.firstName} ${emp.lastName}`
-    }));
+    })), [employees]);
 
-  const initializeWeekData = () => {
-    const startDate = new Date(formData.date);
-    const dayOfWeek = startDate.getDay();
-    const weekStart = new Date(startDate);
-    weekStart.setDate(startDate.getDate() - dayOfWeek);
+  // Pre-select employee if not admin
+  useEffect(() => {
+    if (!userIsAdmin && user?.employeeId) {
+      setFormData(prev => ({ ...prev, employeeId: user.employeeId }));
+    }
+    else if (userIsAdmin && activeEmployees.length > 0 && !formData.employeeId) {
+        setFormData(prev => ({ ...prev, employeeId: activeEmployees[0].value }));
+    }
+  }, [userIsAdmin, user?.employeeId, activeEmployees]);
+
+  // FIX: Trigger initializeWeekData when entryMode changes to 'week' or formData.date changes
+  useEffect(() => {
+    if (entryMode === 'week' && formData.employeeId && formData.date) {
+      initializeWeekData();
+    }
+  }, [entryMode, formData.employeeId, formData.date]); // Added formData.date as dependency
+
+  const initializeWeekData = async () => { // FIX: Make async to potentially fetch data
+    const selectedDate = new Date(formData.date); // Use formData.date for the selected date
+    const dayOfWeek = selectedDate.getDay(); // 0 for Sunday, 1 for Monday etc.
+    const weekStart = new Date(selectedDate);
+    weekStart.setDate(selectedDate.getDate() - dayOfWeek); // Set to the start of the week (Sunday)
 
     const week = [];
+    // FIX: Fetch existing timesheets for the current employee and week range
+    const fetchedTimesheetsForWeek = await postData('/timesheets/by-employee-and-week', {
+        employeeId: formData.employeeId,
+        startDate: weekStart.toISOString().split('T')[0],
+        endDate: new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6).toISOString().split('T')[0]
+    }, null, null); // Don't show messages for this internal fetch
+
     for (let i = 0; i < 7; i++) {
       const date = new Date(weekStart);
       date.setDate(weekStart.getDate() + i);
+      const dateString = date.toISOString().split('T')[0];
       
-      // Check if entry already exists
-      const existingEntry = timesheets.find(ts => 
-        ts.employeeId === formData.employeeId && 
-        ts.date === date.toISOString().split('T')[0]
-      );
+      const existingEntry = (fetchedTimesheetsForWeek || []).find(ts => ts.date === dateString);
 
       week.push({
-        date: date.toISOString().split('T')[0],
+        date: dateString,
         dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
         hours: existingEntry ? existingEntry.hours : '',
         description: existingEntry ? existingEntry.description : '',
-        isWeekend: i === 0 || i === 6
+        isWeekend: i === 0 || i === 6 // Sunday and Saturday
       });
     }
     setWeekData(week);
@@ -99,7 +118,8 @@ const TimesheetEntryForm = () => {
     if (!formData.date) {
       newErrors.date = 'Please select a date';
     }
-    if (!formData.hours || formData.hours <= 0 || formData.hours > 24) {
+    const hours = parseFloat(formData.hours);
+    if (isNaN(hours) || hours <= 0 || hours > 24) {
       newErrors.hours = 'Please enter valid hours (1-24)';
     }
     if (!formData.description) {
@@ -119,7 +139,8 @@ const TimesheetEntryForm = () => {
 
     // Validate each entry
     for (const day of weekData) {
-      if (day.hours && (day.hours <= 0 || day.hours > 24)) {
+      const hours = parseFloat(day.hours);
+      if (day.hours && (isNaN(hours) || hours <= 0 || hours > 24)) {
         showMessage(`Invalid hours for ${day.dayName}. Must be between 1-24`, 'error');
         return false;
       }
@@ -132,34 +153,35 @@ const TimesheetEntryForm = () => {
     return true;
   };
 
-  const handleSubmitSingle = () => {
+  const handleSubmitSingle = async () => { // FIX: Made async
     if (!validateSingleEntry()) {
       return;
     }
 
-    const employee = employees.find(emp => emp.id === formData.employeeId);
+    setIsLoading(true); // FIX: Set loading true
     
-    const newEntry = {
-      id: `ts-${Date.now()}`,
+    const payload = {
       employeeId: formData.employeeId,
-      employeeName: `${employee.firstName} ${employee.lastName}`,
       date: formData.date,
       hours: parseFloat(formData.hours),
       description: formData.description
     };
 
-    setTimesheets(prev => [...prev, newEntry]);
-    showMessage('Timesheet entry added successfully', 'success');
-    
-    // Reset form for continuous entry
-    setFormData(prev => ({
-      ...prev,
-      hours: '',
-      description: ''
-    }));
+    const result = await postData('/timesheets', payload, 'Timesheet entry added successfully', 'Failed to add timesheet entry'); // FIX: Call postData
+
+    if (result) {
+      await fetchTimesheets(); // FIX: Re-fetch global timesheets
+      // Reset form for continuous entry
+      setFormData(prev => ({
+        ...prev,
+        hours: '',
+        description: ''
+      }));
+    }
+    setIsLoading(false); // FIX: Set loading false
   };
 
-  const handleSubmitWeek = () => {
+  const handleSubmitWeek = async () => { // FIX: Made async
     if (!formData.employeeId) {
       showMessage('Please select an employee', 'error');
       return;
@@ -169,25 +191,40 @@ const TimesheetEntryForm = () => {
       return;
     }
 
-    const employee = employees.find(emp => emp.id === formData.employeeId);
-    const newEntries = [];
+    setIsLoading(true); // FIX: Set loading true
 
-    weekData.forEach(day => {
+    const newEntries = [];
+    for (const day of weekData) { // FIX: Use for...of for async operations if needed later
       if (day.hours && day.description) {
         newEntries.push({
-          id: `ts-${Date.now()}-${day.date}`,
           employeeId: formData.employeeId,
-          employeeName: `${employee.firstName} ${employee.lastName}`,
           date: day.date,
           hours: parseFloat(day.hours),
           description: day.description
         });
       }
-    });
+    }
 
-    setTimesheets(prev => [...prev, ...newEntries]);
-    showMessage(`${newEntries.length} timesheet entries added successfully`, 'success');
-    setCurrentPage('timesheets');
+    // FIX: Send each entry individually or as a batch if API supports
+    // For simplicity, posting one by one for now.
+    // A more efficient backend might have a batch create endpoint.
+    let allSucceeded = true;
+    for (const entry of newEntries) {
+        const result = await postData('/timesheets', entry, null, `Failed to add entry for ${new Date(entry.date).toLocaleDateString()}`);
+        if (!result) {
+            allSucceeded = false;
+        }
+    }
+
+    if (allSucceeded) {
+      await fetchTimesheets(); // FIX: Re-fetch global timesheets
+      showMessage(`${newEntries.length} timesheet entries added successfully`, 'success');
+      setCurrentPage('timesheets');
+    } else {
+        showMessage('Some timesheet entries failed to save. Check console for details.', 'error');
+    }
+    
+    setIsLoading(false); // FIX: Set loading false
   };
 
   const handleSubmit = (e) => {
@@ -209,7 +246,7 @@ const TimesheetEntryForm = () => {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">{t('timesheets.addNew')}</h1>
+      <h1 className="text-2xl font-bold text-gray-800">{t('timesheets.addNew')}</h1>
 
       {/* Entry Mode Selector */}
       <Card className="mb-6">
@@ -226,7 +263,11 @@ const TimesheetEntryForm = () => {
             </Button>
             <Button
               type="button"
-              onClick={() => setEntryMode('week')}
+              onClick={() => {
+                setEntryMode('week');
+                // Ensure form data date is today's date if empty or invalid for initial week view
+                setFormData(prev => ({ ...prev, date: prev.date || new Date().toISOString().split('T')[0] }));
+              }}
               variant={entryMode === 'week' ? 'primary' : 'outline'}
               size="small"
             >
@@ -238,19 +279,26 @@ const TimesheetEntryForm = () => {
 
       <form onSubmit={handleSubmit}>
         {entryMode === 'single' ? (
-          /* Single Entry Mode */
+          /* Single Entry Mode (unchanged) */
           <Card>
             <div className="space-y-4">
-              <Select
-                label={t('leave.employee')}
-                name="employeeId"
-                value={formData.employeeId}
-                onChange={handleInputChange}
-                options={activeEmployees}
-                placeholder="Select an employee"
-                error={errors.employeeId}
-                required
-              />
+              {userIsAdmin ? (
+                <Select
+                  label={t('leave.employee')}
+                  name="employeeId"
+                  value={formData.employeeId}
+                  onChange={handleInputChange}
+                  options={activeEmployees}
+                  placeholder="Select an employee"
+                  error={errors.employeeId}
+                  required
+                />
+              ) : (
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('leave.employee')}</label>
+                    <p className="mt-2 text-gray-800 font-semibold">{user?.firstName} {user?.lastName}</p>
+                </div>
+              )}
 
               <Input
                 label={t('timesheets.date')}
@@ -313,7 +361,7 @@ const TimesheetEntryForm = () => {
 
             <div className="mt-6 flex justify-between">
               <div className="space-x-2">
-                <Button type="submit">
+                <Button type="submit" disabled={isLoading}>
                   <Plus className="w-4 h-4 mr-2" />
                   Add Entry
                 </Button>
@@ -334,14 +382,30 @@ const TimesheetEntryForm = () => {
           /* Weekly Entry Mode */
           <div className="space-y-6">
             <Card>
-              <Select
-                label={t('leave.employee')}
-                name="employeeId"
-                value={formData.employeeId}
+              {userIsAdmin ? (
+                <Select
+                  label={t('leave.employee')}
+                  name="employeeId"
+                  value={formData.employeeId}
+                  onChange={handleInputChange}
+                  options={activeEmployees}
+                  placeholder="Select an employee"
+                  required
+                />
+              ) : (
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('leave.employee')}</label>
+                    <p className="mt-2 text-gray-800 font-semibold">{user?.firstName} {user?.lastName}</p>
+                </div>
+              )}
+              {/* FIX: New date input for selecting the week */}
+              <Input
+                label={t('timesheets.selectWeek')} // Needs new translation key
+                name="date"
+                type="date"
+                value={formData.date}
                 onChange={handleInputChange}
-                options={activeEmployees}
-                placeholder="Select an employee"
-                required
+                max={new Date().toISOString().split('T')[0]} // Cannot select future weeks
               />
             </Card>
 
@@ -400,7 +464,7 @@ const TimesheetEntryForm = () => {
                   <Button type="button" onClick={handleCancel} variant="secondary">
                     {t('common.cancel')}
                   </Button>
-                  <Button type="submit">
+                  <Button type="submit" disabled={isLoading}>
                     <Save className="w-4 h-4 mr-2" />
                     Save Week
                   </Button>

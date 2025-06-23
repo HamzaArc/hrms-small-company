@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useHRMS } from '../../contexts/HRMSContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { 
@@ -12,20 +12,23 @@ import Card from '../common/Card';
 
 const Timesheets = () => {
   const { 
-    timesheets, 
-    setTimesheets, 
     employees, 
+    fetchEmployees,
+    fetchTimesheets,
+    deleteData,
     setCurrentPage,
-    showMessage 
+    showMessage,
+    user,
+    timesheets: globalTimesheets // Get global timesheets state from context
   } = useHRMS();
   const { t } = useLanguage();
 
   const [filterEmployee, setFilterEmployee] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
-  const [viewMode, setViewMode] = useState('list'); // list or summary
+  const [viewMode, setViewMode] = useState('list');
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Define getWeekKey function before using it
   const getWeekKey = (dateStr) => {
     const date = new Date(dateStr);
     const weekStart = new Date(date);
@@ -33,9 +36,28 @@ const Timesheets = () => {
     return weekStart.toISOString().split('T')[0];
   };
 
+  // Fetch and update local state when globalTimesheets or user change
+  useEffect(() => {
+    const loadAndFilterTimesheets = async () => {
+      setIsLoading(true);
+      if (employees.length === 0) {
+        await fetchEmployees(); // Ensure employees are loaded
+      }
+      
+      // This refreshes the global `timesheets` state in HRMSContext
+      await fetchTimesheets(); 
+
+      setIsLoading(false);
+    };
+
+    if (user?.tenantId) {
+      loadAndFilterTimesheets();
+    }
+  }, [user, fetchTimesheets, fetchEmployees, employees.length]); // Added employees.length as dependency to refetch if employees change
+
   // Get unique employees from timesheets
   const employeeOptions = useMemo(() => {
-    const uniqueEmployees = [...new Set(timesheets.map(ts => ts.employeeId))];
+    const uniqueEmployees = [...new Set(employees.map(emp => emp.id))];
     return uniqueEmployees.map(empId => {
       const emp = employees.find(e => e.id === empId);
       return {
@@ -43,18 +65,24 @@ const Timesheets = () => {
         label: emp ? `${emp.firstName} ${emp.lastName}` : 'Unknown'
       };
     });
-  }, [timesheets, employees]);
+  }, [employees]);
 
-  // Filter timesheets
+  // Filter timesheets (client-side for now, backend could support this later)
   const filteredTimesheets = useMemo(() => {
-    return timesheets.filter(timesheet => {
+    // Apply filters to the globally managed timesheets
+    return (globalTimesheets || []).filter(timesheet => {
       const matchesEmployee = !filterEmployee || timesheet.employeeId === filterEmployee;
-      const matchesDateFrom = !filterDateFrom || timesheet.date >= filterDateFrom;
-      const matchesDateTo = !filterDateTo || timesheet.date <= filterDateTo;
+      
+      const entryDate = new Date(timesheet.date);
+      const fromDate = filterDateFrom ? new Date(filterDateFrom) : null;
+      const toDate = filterDateTo ? new Date(filterDateTo) : null;
+
+      const matchesDateFrom = !fromDate || entryDate >= fromDate;
+      const matchesDateTo = !toDate || entryDate <= toDate;
       
       return matchesEmployee && matchesDateFrom && matchesDateTo;
     });
-  }, [timesheets, filterEmployee, filterDateFrom, filterDateTo]);
+  }, [globalTimesheets, filterEmployee, filterDateFrom, filterDateTo]);
 
   // Calculate summary statistics
   const summary = useMemo(() => {
@@ -66,35 +94,38 @@ const Timesheets = () => {
     };
 
     filteredTimesheets.forEach(ts => {
-      stats.totalHours += ts.hours;
+      const currentHours = parseFloat(ts.hours) || 0; 
+      stats.totalHours += currentHours;
       
-      // By employee
-      if (!stats.byEmployee[ts.employeeName]) {
-        stats.byEmployee[ts.employeeName] = 0;
+      const employee = employees.find(emp => emp.id === ts.employeeId);
+      const employeeName = employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown';
+      if (!stats.byEmployee[employeeName]) {
+        stats.byEmployee[employeeName] = 0;
       }
-      stats.byEmployee[ts.employeeName] += ts.hours;
+      stats.byEmployee[employeeName] += currentHours;
       
-      // By week
       const weekKey = getWeekKey(ts.date);
       if (!stats.byWeek[weekKey]) {
         stats.byWeek[weekKey] = 0;
       }
-      stats.byWeek[weekKey] += ts.hours;
+      stats.byWeek[weekKey] += currentHours;
     });
 
     const uniqueDays = [...new Set(filteredTimesheets.map(ts => ts.date))].length;
     stats.avgHoursPerDay = uniqueDays > 0 ? (stats.totalHours / uniqueDays).toFixed(1) : 0;
 
     return stats;
-  }, [filteredTimesheets]);
+  }, [filteredTimesheets, employees]);
 
-  const handleDelete = (timesheetId) => {
+  const handleDelete = async (timesheetId) => {
     showMessage('Are you sure you want to delete this timesheet entry?', 'warning', [
       {
         label: t('common.yes'),
-        onClick: () => {
-          setTimesheets(prev => prev.filter(ts => ts.id !== timesheetId));
-          showMessage('Timesheet entry deleted successfully', 'success');
+        onClick: async () => {
+          const success = await deleteData('/timesheets', timesheetId, 'Timesheet entry deleted successfully');
+          if (success) {
+            await fetchTimesheets(); // This will re-fetch and trigger re-render
+          }
         },
         primary: true
       },
@@ -106,7 +137,6 @@ const Timesheets = () => {
   };
 
   const handleExport = () => {
-    // Simulate export functionality
     showMessage('Timesheet data exported successfully', 'success');
   };
 
@@ -125,7 +155,7 @@ const Timesheets = () => {
             onClick={() => setViewMode(viewMode === 'list' ? 'summary' : 'list')}
             variant="secondary"
           >
-            {viewMode === 'list' ? 'Summary View' : 'List View'}
+            {viewMode === 'list' ? t('timesheets.summaryView') : t('timesheets.listView')}
           </Button>
           <Button onClick={() => setCurrentPage('timesheetEntry')}>
             <Plus className="w-4 h-4 mr-2" />
@@ -151,22 +181,23 @@ const Timesheets = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Select
+              label={t('leave.employee')}
               value={filterEmployee}
               onChange={(e) => setFilterEmployee(e.target.value)}
               options={employeeOptions}
               placeholder="All Employees"
             />
             <Input
+              label={t('timesheets.from')}
               type="date"
               value={filterDateFrom}
               onChange={(e) => setFilterDateFrom(e.target.value)}
-              placeholder="From Date"
             />
             <Input
+              label={t('timesheets.to')}
               type="date"
               value={filterDateTo}
               onChange={(e) => setFilterDateTo(e.target.value)}
-              placeholder="To Date"
               min={filterDateFrom}
             />
           </div>
@@ -206,7 +237,15 @@ const Timesheets = () => {
         </Card>
       </div>
 
-      {viewMode === 'list' ? (
+      {isLoading ? (
+        <Card><p className="text-center">{t('common.loading')}</p></Card>
+      ) : filteredTimesheets.length === 0 && (filterEmployee || filterDateFrom || filterDateTo || globalTimesheets.length > 0) ? (
+        <Card>
+          <p className="text-center text-gray-500">
+            {filterEmployee || filterDateFrom || filterDateTo ? "No timesheet entries found matching your filters." : "No timesheet entries found for your tenant."}
+          </p>
+        </Card>
+      ) : viewMode === 'list' ? (
         /* List View */
         <Card className="overflow-hidden">
           <div className="flex justify-between items-center mb-4">
@@ -239,14 +278,7 @@ const Timesheets = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredTimesheets.length === 0 ? (
-                  <tr>
-                    <td colSpan="5" className="px-6 py-4 text-center text-gray-500">
-                      No timesheet entries found
-                    </td>
-                  </tr>
-                ) : (
-                  filteredTimesheets.map((timesheet) => (
+                {filteredTimesheets.map((timesheet) => (
                     <tr key={timesheet.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {new Date(timesheet.date).toLocaleDateString()}
@@ -255,7 +287,7 @@ const Timesheets = () => {
                         <div className="flex items-center">
                           <User className="w-4 h-4 text-gray-400 mr-2" />
                           <span className="text-sm font-medium text-gray-900">
-                            {timesheet.employeeName}
+                            {employees.find(emp => emp.id === timesheet.employeeId)?.firstName} {employees.find(emp => emp.id === timesheet.employeeId)?.lastName}
                           </span>
                         </div>
                       </td>
@@ -276,8 +308,7 @@ const Timesheets = () => {
                         </button>
                       </td>
                     </tr>
-                  ))
-                )}
+                  ))}
               </tbody>
             </table>
           </div>

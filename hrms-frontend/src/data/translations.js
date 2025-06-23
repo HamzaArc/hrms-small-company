@@ -100,6 +100,18 @@ export const translations = {
     'common.active': 'Active',
     'common.inactive': 'Inactive',
     'common.allFields': 'All fields are required',
+
+     // Timesheets additions
+    'timesheets.date': 'Date',
+    'timesheets.hours': 'Hours',
+    'timesheets.description': 'Description',
+    'timesheets.addNew': 'Add New Entry', // Already exists, but confirm
+    'timesheets.from': 'From Date', // FIX: New translation key
+    'timesheets.to': 'To Date',     // FIX: New translation key
+    'timesheets.listView': 'List View', // FIX: New translation key
+    'timesheets.summaryView': 'Summary View', // FIX: New translation key
+    'timesheets.selectWeek': 'Select Week', // FIX: New translation key
+
   },
   
   fr: {
@@ -195,5 +207,17 @@ export const translations = {
     'common.active': 'Actif',
     'common.inactive': 'Inactif',
     'common.allFields': 'Tous les champs sont requis',
+
+    // Timesheets additions
+    'timesheets.date': 'Date',
+    'timesheets.hours': 'Heures',
+    'timesheets.description': 'Description',
+    'timesheets.addNew': 'Ajouter une nouvelle entrée', // Already exists, but confirm
+    'timesheets.from': 'Date de début', // FIX: New translation key
+    'timesheets.to': 'Date de fin',     // FIX: New translation key
+    'timesheets.listView': 'Vue Liste', // FIX: New translation key
+    'timesheets.summaryView': 'Vue Résumé', // FIX: New translation key
+    'timesheets.selectWeek': 'Sélectionner la semaine', // FIX: New translation key
+
   }
 };

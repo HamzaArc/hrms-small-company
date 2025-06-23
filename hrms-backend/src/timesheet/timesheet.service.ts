@@ -1,6 +1,7 @@
+// hrms-backend/src/timesheet/timesheet.service.ts
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Between } from 'typeorm'; // Import Between
 import { Timesheet } from './timesheet.entity';
 import { EmployeeService } from '../employee/employee.service'; // To validate employee existence
 
@@ -92,5 +93,20 @@ export class TimesheetService {
     if (result.affected === 0) {
       throw new NotFoundException(`Timesheet entry with ID "${id}" not found for this tenant.`);
     }
+  }
+
+    async findAllByEmployeeAndDateRange(employeeId: string, startDate: string, endDate: string, tenantId: string): Promise<Timesheet[]> {
+    // Optionally validate employee exists if not doing it in controller
+    await this.employeeService.findOne(employeeId, tenantId);
+
+    return this.timesheetsRepository.find({
+      where: {
+        tenantId: tenantId,
+        employeeId: employeeId,
+        date: Between(new Date(startDate), new Date(endDate)),
+      },
+      relations: ['employee'],
+      order: { date: 'ASC' }, // Order by date for chronological week display
+    });
   }
 }
