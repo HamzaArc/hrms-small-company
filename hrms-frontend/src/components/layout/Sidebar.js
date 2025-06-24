@@ -55,8 +55,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
-        <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-xl font-bold text-gray-800">HRMS</h2>
+        <div className="flex items-center justify-between p-4 border-b h-16"> {/* Added h-16 for consistent height */}
+          <h2 className="text-xl font-bold text-gray-800 leading-none">HRMS</h2> {/* Added leading-none */}
           <button
             onClick={toggleSidebar}
             className="md:hidden text-gray-500 hover:text-gray-700"

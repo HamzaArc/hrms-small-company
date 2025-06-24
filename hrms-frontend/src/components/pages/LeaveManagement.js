@@ -39,7 +39,6 @@ const LeaveManagement = () => {
     if (!result) {
        showMessage('Failed to update status. Please try again.', 'error');
     }
-    // Refresh list from server to ensure consistency
     await fetchLeaveRequests();
   };
   
@@ -84,7 +83,9 @@ const LeaveManagement = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('leave.type')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">{t('leave.startDate')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">{t('leave.endDate')}</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('leave.status')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {t('leave.status')} {/* CHANGED LINE */}
+                </th>
                 {userIsAdmin && <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('common.actions')}</th>}
               </tr>
             </thead>

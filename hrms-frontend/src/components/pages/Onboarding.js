@@ -12,16 +12,16 @@ import Card from '../common/Card';
 
 const Onboarding = () => {
   const { 
-    employees, // Employees from global context (for selecting assignee)
+    employees, 
     showMessage,
-    fetchData, // For GET requests
-    postData, // For POST requests
-    putData, // For PUT requests
-    deleteData // For DELETE requests
+    fetchData, 
+    postData, 
+    putData, 
+    deleteData 
   } = useHRMS();
   const { t } = useLanguage();
 
-  const [onboardingTasks, setOnboardingTasks] = useState([]); // State for fetched onboarding tasks
+  const [onboardingTasks, setOnboardingTasks] = useState([]); 
   const [filterEmployee, setFilterEmployee] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [expandedEmployees, setExpandedEmployees] = useState({});
@@ -29,7 +29,6 @@ const Onboarding = () => {
   const [newTaskForm, setNewTaskForm] = useState({ employeeId: '', task: '', dueDate: '' });
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch onboarding tasks when component mounts or dependencies change
   useEffect(() => {
     const loadOnboardingTasks = async () => {
       setIsLoading(true);
@@ -40,14 +39,14 @@ const Onboarding = () => {
       setIsLoading(false);
     };
     loadOnboardingTasks();
-  }, [fetchData]); // Dependency array: re-run when fetchData (or any dependency of fetchData like user/tenant) changes
+  }, [fetchData]); 
 
-  const employeeOptions = employees
+  const employeeOptions = useMemo(() => employees
     .filter(emp => emp.status === 'Active')
     .map(emp => ({
       value: emp.id,
       label: `${emp.firstName} ${emp.lastName}`
-    }));
+    })), [employees]);
 
   const statusOptions = [
     { value: 'all', label: t('common.allTasks') },
@@ -56,7 +55,6 @@ const Onboarding = () => {
     { value: 'overdue', label: t('common.overdue') }
   ];
 
-  // Group and filter tasks by employee
   const groupedAndFilteredTasks = useMemo(() => {
     const grouped = {};
     onboardingTasks.forEach(task => {
@@ -67,13 +65,11 @@ const Onboarding = () => {
     });
 
     return employees.filter(emp => {
-      // Filter by selected employee
       if (filterEmployee && emp.id !== filterEmployee) return false;
       
       const empTasks = grouped[emp.id] || [];
-      if (empTasks.length === 0) return false; // Only show employees with tasks
+      if (empTasks.length === 0) return false; 
 
-      // Filter tasks by status for display purposes, but don't exclude employee if they have any matching task
       let hasMatchingTasksForFilter = false;
       if (filterStatus && filterStatus !== 'all') {
         hasMatchingTasksForFilter = empTasks.some(task => {
@@ -86,33 +82,31 @@ const Onboarding = () => {
           }
         });
       } else {
-        hasMatchingTasksForFilter = true; // No status filter or 'all' selected
+        hasMatchingTasksForFilter = true;
       }
       
       return hasMatchingTasksForFilter;
     }).map(emp => ({
       ...emp,
-      // Only include tasks that match the status filter for display within the expanded view
       onboardingTasks: (grouped[emp.id] || []).filter(task => {
         const isOverdue = new Date(task.dueDate) < new Date() && !task.completed;
         switch (filterStatus) {
           case 'completed': return task.completed;
           case 'pending': return !task.completed && !isOverdue;
           case 'overdue': return isOverdue;
-          case 'all': return true; // Show all if 'all' filter is selected
-          default: return true; // Fallback to show all
+          case 'all': return true;
+          default: return true;
         }
       })
     }));
   }, [onboardingTasks, employees, filterEmployee, filterStatus, t]);
 
 
-  // Calculate statistics (now based on `onboardingTasks` directly from backend)
   const statistics = useMemo(() => {
     let totalTasks = 0;
     let completedTasks = 0;
     let overdueTasks = 0;
-    const employeesWithIncompleteTasks = new Set(); // Changed from employeesInProgress to reflect meaning
+    const employeesWithIncompleteTasks = new Set(); 
 
     onboardingTasks.forEach(task => {
       totalTasks++;
@@ -123,7 +117,7 @@ const Onboarding = () => {
         if (isOverdue) {
           overdueTasks++;
         }
-        employeesWithIncompleteTasks.add(task.employeeId); // Add to set if task is incomplete
+        employeesWithIncompleteTasks.add(task.employeeId);
       }
     });
     
@@ -135,7 +129,7 @@ const Onboarding = () => {
       totalTasks,
       completedTasks,
       overdueTasks,
-      employeesInProgress: employeesWithIncompleteTasks.size, // Number of employees with at least one pending task
+      employeesInProgress: employeesWithIncompleteTasks.size,
       completionRate
     };
   }, [onboardingTasks]);
@@ -151,8 +145,7 @@ const Onboarding = () => {
     const payload = { completed: !currentCompletedStatus };
     const result = await putData(`/onboarding-tasks/${taskId}`, payload, 'Task status updated successfully!');
     if (result) {
-      // Optimistically update or re-fetch to ensure consistency
-      const fetchedTasks = await fetchData('/onboarding-tasks'); // Re-fetch to update UI
+      const fetchedTasks = await fetchData('/onboarding-tasks');
       if (fetchedTasks) {
         setOnboardingTasks(fetchedTasks);
       }
@@ -177,7 +170,7 @@ const Onboarding = () => {
     const result = await putData(`/onboarding-tasks/${editingTask.id}`, payload, 'Task updated successfully!');
     if (result) {
       setEditingTask(null);
-      const fetchedTasks = await fetchData('/onboarding-tasks'); // Re-fetch to update UI
+      const fetchedTasks = await fetchData('/onboarding-tasks');
       if (fetchedTasks) {
         setOnboardingTasks(fetchedTasks);
       }
@@ -191,7 +184,7 @@ const Onboarding = () => {
         onClick: async () => {
           const success = await deleteData('/onboarding-tasks', taskId, 'Task deleted successfully');
           if (success) {
-            const fetchedTasks = await fetchData('/onboarding-tasks'); // Re-fetch to update UI
+            const fetchedTasks = await fetchData('/onboarding-tasks');
             if (fetchedTasks) {
               setOnboardingTasks(fetchedTasks);
             }
@@ -218,13 +211,13 @@ const Onboarding = () => {
       employeeId,
       task,
       dueDate,
-      completed: false // Default for new tasks
+      completed: false 
     };
 
     const result = await postData('/onboarding-tasks', payload, 'Task added successfully');
     if (result) {
-      setNewTaskForm({ employeeId: '', task: '', dueDate: '' }); // Clear form
-      const fetchedTasks = await fetchData('/onboarding-tasks'); // Re-fetch to update UI
+      setNewTaskForm({ employeeId: '', task: '', dueDate: '' }); 
+      const fetchedTasks = await fetchData('/onboarding-tasks');
       if (fetchedTasks) {
         setOnboardingTasks(fetchedTasks);
       }
@@ -233,7 +226,7 @@ const Onboarding = () => {
 
   const getTaskStatus = (task) => {
     if (task.completed) return 'completed';
-    if (new Date(task.dueDate) < new Date() && !task.completed) return 'overdue'; // Only overdue if not completed
+    if (new Date(task.dueDate) < new Date() && !task.completed) return 'overdue'; 
     return 'pending';
   };
 
@@ -243,7 +236,7 @@ const Onboarding = () => {
         return <CheckCircle className="w-5 h-5 text-green-600" />;
       case 'overdue':
         return <AlertCircle className="w-5 h-5 text-red-600" />;
-      default: // pending
+      default: 
         return <Clock className="w-5 h-5 text-yellow-600" />;
     }
   };
@@ -254,7 +247,6 @@ const Onboarding = () => {
     return Math.round((completed / tasks.length) * 100);
   };
 
-  // Onboarding templates (now directly apply to form, then user clicks Add Task)
   const onboardingTemplates = [
     {
       name: 'Standard Employee',
@@ -302,16 +294,15 @@ const Onboarding = () => {
 
     let allSucceeded = true;
     for (const taskPayload of tasksToCreate) {
-        const result = await postData('/onboarding-tasks', taskPayload, null); // Don't show message for each individual task
+        const result = await postData('/onboarding-tasks', taskPayload, null); 
         if (!result) {
             allSucceeded = false;
-            // Potentially log or inform user about specific task failure
         }
     }
 
     if (allSucceeded) {
         showMessage(`Applied ${template.name} template for the selected employee.`, 'success');
-        const fetchedTasks = await fetchData('/onboarding-tasks'); // Re-fetch to update UI
+        const fetchedTasks = await fetchData('/onboarding-tasks');
         if (fetchedTasks) {
             setOnboardingTasks(fetchedTasks);
         }
@@ -371,35 +362,40 @@ const Onboarding = () => {
 
       {/* Add New Task */}
       <Card title={t('onboarding.addTask')}>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-          <Select
-            label={t('onboarding.employee')}
-            name="employeeId"
-            value={newTaskForm.employeeId}
-            onChange={(e) => setNewTaskForm(prev => ({ ...prev, employeeId: e.target.value }))}
-            options={employeeOptions}
-            placeholder="Select employee"
-            className="md:col-span-1"
-          />
-          <Input
-            label={t('onboarding.taskDescription')}
-            value={newTaskForm.task}
-            onChange={(e) => setNewTaskForm(prev => ({ ...prev, task: e.target.value }))}
-            placeholder="Task description"
-            className="md:col-span-2"
-          />
-          <Input
-            label={t('onboarding.dueDate')}
-            type="date"
-            value={newTaskForm.dueDate}
-            onChange={(e) => setNewTaskForm(prev => ({ ...prev, dueDate: e.target.value }))}
-            min={new Date().toISOString().split('T')[0]}
-            className="md:col-span-1"
-          />
-          <Button onClick={handleAddTask} className="md:col-span-4 lg:col-span-1 mt-4 md:mt-0 w-full justify-center">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Task
-          </Button>
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end"> {/* Adjusted grid for alignment */}
+          <div className="md:col-span-3"> {/* Span for employee select */}
+            <Select
+              label={t('onboarding.employee')}
+              name="employeeId"
+              value={newTaskForm.employeeId}
+              onChange={(e) => setNewTaskForm(prev => ({ ...prev, employeeId: e.target.value }))}
+              options={employeeOptions}
+              placeholder="Select employee"
+            />
+          </div>
+          <div className="md:col-span-5"> {/* Span for task description */}
+            <Input
+              label={t('onboarding.taskDescription')}
+              value={newTaskForm.task}
+              onChange={(e) => setNewTaskForm(prev => ({ ...prev, task: e.target.value }))}
+              placeholder="Task description"
+            />
+          </div>
+          <div className="md:col-span-3"> {/* Span for due date */}
+            <Input
+              label={t('onboarding.dueDate')}
+              type="date"
+              value={newTaskForm.dueDate}
+              onChange={(e) => setNewTaskForm(prev => ({ ...prev, dueDate: e.target.value }))}
+              min={new Date().toISOString().split('T')[0]}
+            />
+          </div>
+          <div className="md:col-span-1 flex justify-end items-end h-full"> {/* Span and alignment for button */}
+            <Button onClick={handleAddTask} size="small" className="w-full"> {/* Smaller button size */}
+              <Plus className="w-4 h-4 mr-2" />
+              Add
+            </Button>
+          </div>
         </div>
       </Card>
 
@@ -486,7 +482,7 @@ const Onboarding = () => {
                             onClick={() => applyTemplate(employee.id, template)}
                             variant="outline"
                             size="small"
-                            disabled={!employee.id} // Disable if no employee selected for template
+                            disabled={!employee.id}
                           >
                             {template.name}
                           </Button>
@@ -513,7 +509,6 @@ const Onboarding = () => {
                           >
                             {isEditing ? (
                               <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
-                                {/* Fixed sizing for edit fields */}
                                 <div className="md:col-span-2">
                                     <Input
                                         value={editingTask.task}
@@ -524,7 +519,7 @@ const Onboarding = () => {
                                 <div className="md:col-span-1">
                                     <Input
                                         type="date"
-                                        value={editingTask.dueDate ? new Date(editingTask.dueDate).toISOString().split('T')[0] : ''} // Ensure date format for input
+                                        value={editingTask.dueDate ? new Date(editingTask.dueDate).toISOString().split('T')[0] : ''}
                                         onChange={(e) => setEditingTask(prev => ({ ...prev, dueDate: e.target.value }))}
                                         className="w-full"
                                     />
@@ -541,12 +536,11 @@ const Onboarding = () => {
                             ) : (
                               <>
                                 <div className="flex items-center space-x-3">
-                                  {/* Mark as Done/Incomplete - Clickable Icon */}
                                   <button
                                     type="button"
                                     onClick={(e) => {
-                                      e.stopPropagation(); // Prevent toggling employee expansion
-                                      handleTaskToggle(task.id, task.completed); // Pass task.id and current completed status
+                                      e.stopPropagation();
+                                      handleTaskToggle(task.id, task.completed);
                                     }}
                                     className="focus:outline-none"
                                     title={task.completed ? 'Mark as Incomplete' : 'Mark as Completed'}

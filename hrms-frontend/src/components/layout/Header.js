@@ -6,7 +6,6 @@ import Card from '../common/Card';
 import Button from '../common/Button';
 
 const Header = ({ toggleSidebar, logout }) => {
-  // FIX: Provide a default empty array for notifications to prevent crash
   const { notifications = [], setNotifications, setCurrentPage, user } = useHRMS();
   const { t, currentLang, setCurrentLang } = useLanguage();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -26,7 +25,6 @@ const Header = ({ toggleSidebar, logout }) => {
   };
   
   const handleMyProfile = () => {
-    // We already have the user object in context, so no need to find it again
     if (user) {
       setCurrentPage('myProfile');
     }
@@ -39,7 +37,7 @@ const Header = ({ toggleSidebar, logout }) => {
 
   return (
     <header className="bg-white shadow-sm border-b border-gray-200">
-      <div className="flex items-center justify-between p-4">
+      <div className="flex items-center justify-between p-4 h-16"> {/* Added h-16 for consistent height */}
         <div className="flex items-center space-x-4">
           <button
             onClick={toggleSidebar}
@@ -47,7 +45,7 @@ const Header = ({ toggleSidebar, logout }) => {
           >
             <Menu className="w-6 h-6" />
           </button>
-          <h1 className="text-xl font-semibold text-gray-800 hidden md:block">
+          <h1 className="text-xl font-semibold text-gray-800 hidden md:block leading-none"> {/* Added leading-none */}
             {t('header.title')}
           </h1>
         </div>

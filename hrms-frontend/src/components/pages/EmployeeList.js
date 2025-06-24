@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'; // Added useEffect
+import React, { useState, useMemo, useEffect } from 'react';
 import { useHRMS } from '../../contexts/HRMSContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Search, Plus, Edit } from 'lucide-react';
@@ -8,37 +8,31 @@ import Select from '../common/Select';
 import Card from '../common/Card';
 
 const EmployeeList = () => {
-  // Destructure directly from useHRMS context
   const {
-    employees, // Now managed by HRMSContext, fetched from backend
-    fetchEmployees, // Function to fetch employees
+    employees,
+    fetchEmployees,
     setCurrentPage,
     setSelectedEmployeeId,
     showMessage,
-    user, // Access logged-in user
+    user,
   } = useHRMS();
   const { t } = useLanguage();
 
-  // State for filters
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
-  // Fetch employees on component mount or when tenant changes
   useEffect(() => {
-    if (user?.tenant?.id) { // Ensure user and tenant are loaded
+    if (user?.tenant?.id) {
       fetchEmployees();
     }
   }, [user, fetchEmployees]);
 
-
-  // Get unique departments for filter (still derived from fetched employees)
   const departments = useMemo(() => {
     const depts = [...new Set(employees.map(emp => emp.department))];
     return depts.map(dept => ({ value: dept, label: dept }));
   }, [employees]);
 
-  // Filter employees based on search and filters
   const filteredEmployees = useMemo(() => {
     return employees.filter(employee => {
       const matchesSearch = searchTerm === '' ||
@@ -54,13 +48,13 @@ const EmployeeList = () => {
   }, [employees, searchTerm, departmentFilter, statusFilter]);
 
   const handleAddNew = () => {
-    setSelectedEmployeeId(null); // Clear selected ID for new employee form
-    setCurrentPage('employeeDetail'); // Navigate to detail form
+    setSelectedEmployeeId(null);
+    setCurrentPage('employeeDetail');
   };
 
   const handleViewEdit = (employeeId) => {
-    setSelectedEmployeeId(employeeId); // Set selected ID for editing
-    setCurrentPage('employeeDetail'); // Navigate to detail form
+    setSelectedEmployeeId(employeeId);
+    setCurrentPage('employeeDetail');
   };
 
   const statusOptions = [
@@ -89,7 +83,7 @@ const EmployeeList = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
-              style={{ paddingLeft: '2.5rem' }} // Add this
+              style={{ paddingLeft: '2.5rem' }}
             />
           </div>
 
@@ -119,13 +113,13 @@ const EmployeeList = () => {
                   {t('employees.name')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('employees.role')}
+                  {t('employees.role')} {/* CHANGED LINE */}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
-                  {t('employees.department')}
+                  {t('employees.department')} {/* CHANGED LINE */}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('employees.status')}
+                  {t('employees.status')} {/* CHANGED LINE */}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
                   {t('employees.contact')}
@@ -176,7 +170,7 @@ const EmployeeList = () => {
                         size="small"
                       >
                         <Edit className="w-4 h-4 mr-1" />
-                        {t('employees.viewEdit')}
+                        {t('employees.viewEdit')} {/* CHANGED LINE */}
                       </Button>
                     </td>
                   </tr>

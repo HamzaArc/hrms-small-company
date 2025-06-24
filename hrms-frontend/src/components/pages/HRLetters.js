@@ -301,7 +301,9 @@ ${companyInfo.name}`;
 
   return (
     <div className="space-y-6">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between"> {/* ADD THIS WRAPPER */}
       <h1 className="text-2xl font-bold text-gray-800">{t('letters.title')}</h1>
+    </div>  
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Letter Configuration */}

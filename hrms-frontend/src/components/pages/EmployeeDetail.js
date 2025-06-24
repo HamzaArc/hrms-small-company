@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react'; // Added useCallback
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useHRMS } from '../../contexts/HRMSContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import {
@@ -38,7 +38,6 @@ const EmployeeDetail = ({ isMyProfile = false }) => {
     firstName: '', lastName: '', email: '', phone: '', address: '',
     role: '', department: '', hireDate: '', status: 'Active',
     vacationBalance: 15, sickBalance: 10, personalBalance: 5,
-    // onboardingTasks and documents are fetched separately in their own modules, not part of employee's direct update
   });
 
   const [newTask, setNewTask] = useState({ task: '', dueDate: '' }); // For local mock task addition
@@ -56,13 +55,10 @@ const EmployeeDetail = ({ isMyProfile = false }) => {
           setFormData({
             ...employeeData,
             hireDate: employeeData.hireDate ? new Date(employeeData.hireDate).toISOString().split('T')[0] : '',
-            // Do NOT include nested objects like onboardingTasks/documents here,
-            // as employee update DTO doesn't expect them. They are managed by their own APIs.
             vacationBalance: employeeData.vacationBalance || 0,
             sickBalance: employeeData.sickBalance || 0,
             personalBalance: employeeData.personalBalance || 0,
           });
-          // For myProfile, we explicitly fetch documents
           if (isMyProfile) {
             setMyDocuments(await fetchData(`/documents?employeeId=${currentEmployeeIdToLoad}`) || []);
           }
@@ -70,7 +66,7 @@ const EmployeeDetail = ({ isMyProfile = false }) => {
       } else {
         setFormData({
           firstName: '', lastName: '', email: '', phone: '', address: '',
-          role: '', department: '', hireDate: new Date().toISOString().split('T')[0], // Default to today
+          role: '', department: '', hireDate: new Date().toISOString().split('T')[0],
           status: 'Active',
           vacationBalance: 15, sickBalance: 10, personalBalance: 5,
         });
@@ -99,8 +95,6 @@ const EmployeeDetail = ({ isMyProfile = false }) => {
     setFormData(prev => ({ ...prev, [`${type}Balance`]: parseInt(value) || 0 }));
   }, []);
 
-  // These functions still show message because they are not backed by real APIs from the employee context for now.
-  // Full integration would involve calling document/onboarding-task APIs directly.
   const handleTaskToggle = useCallback((taskId) => showMessage('Onboarding task status update needs backend integration on Onboarding page.', 'info'), [showMessage]);
   const handleAddTask = useCallback(() => showMessage('Adding onboarding tasks needs backend integration on Onboarding page.', 'info'), [showMessage]);
   
@@ -108,8 +102,6 @@ const EmployeeDetail = ({ isMyProfile = false }) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // FIX: Create a clean payload object with only the fields expected by the DTOs.
-    // Explicitly exclude `hireDate` for updates if it's not meant to be changed.
     const payload = {
       firstName: formData.firstName,
       lastName: formData.lastName,
@@ -119,19 +111,16 @@ const EmployeeDetail = ({ isMyProfile = false }) => {
       role: formData.role,
       department: formData.department,
       status: formData.status,
-      // For updates, hireDate is generally immutable, so we exclude it from the payload
-      // If needed for creation, it is handled by CreateEmployeeDto
       vacationBalance: formData.vacationBalance,
       sickBalance: formData.sickBalance,
       personalBalance: formData.personalBalance,
     };
 
-    // If creating a new employee, include hireDate in payload
     if (!selectedEmployeeId) {
         payload.hireDate = formData.hireDate;
     }
     
-    const requiredFields = ['firstName', 'lastName', 'email', 'role', 'department', 'status']; // Removed hireDate from required for update
+    const requiredFields = ['firstName', 'lastName', 'email', 'role', 'department', 'status'];
     if (requiredFields.some(field => !payload[field])) {
         showMessage(t('common.allFields'), 'error');
         setIsLoading(false);
@@ -140,8 +129,8 @@ const EmployeeDetail = ({ isMyProfile = false }) => {
 
     const apiCall = selectedEmployeeId ? putData : postData;
     const endpoint = selectedEmployeeId ? `/employees/${selectedEmployeeId}` : '/employees';
-    const successMsg = selectedEmployeeId ? t('employee.saveSuccess') : t('employee.addSuccess'); // New translation keys
-    const errorMsg = selectedEmployeeId ? t('employee.saveError') : t('employee.addError'); // New translation keys
+    const successMsg = selectedEmployeeId ? t('employee.saveSuccess') : t('employee.addSuccess');
+    const errorMsg = selectedEmployeeId ? t('employee.saveError') : t('employee.addError');
 
     const result = await apiCall(endpoint, payload, successMsg, errorMsg);
     if (result) {
@@ -156,7 +145,7 @@ const EmployeeDetail = ({ isMyProfile = false }) => {
     showMessage(t('employee.confirmDelete'), 'warning', [{
         label: t('common.yes'),
         onClick: async () => {
-            const success = await deleteData('/employees', currentEmployeeIdToLoad, t('employee.deleteSuccess')); // New translation key
+            const success = await deleteData('/employees', currentEmployeeIdToLoad, t('employee.deleteSuccess'));
             if (success) {
                 await fetchEmployees();
                 setCurrentPage('employees');
@@ -177,7 +166,7 @@ const EmployeeDetail = ({ isMyProfile = false }) => {
         <Card><p className="text-center">{t('common.loading')}</p></Card>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-6">
-          <Card title={t('employee.personalInformation')}> {/* New translation key */}
+          <Card title={t('employee.personalInformation')}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Input label={t('employee.firstName')} name="firstName" value={formData.firstName} onChange={handleInputChange} required readOnly={isMyProfile} icon={<User />} />
               <Input label={t('employee.lastName')} name="lastName" value={formData.lastName} onChange={handleInputChange} required readOnly={isMyProfile} icon={<User />} />
@@ -189,11 +178,10 @@ const EmployeeDetail = ({ isMyProfile = false }) => {
             </div>
           </Card>
 
-          <Card title={t('employee.employmentInformation')}> {/* New translation key */}
+          <Card title={t('employee.employmentInformation')}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Select label={t('employee.role')} name="role" value={formData.role} onChange={handleInputChange} options={roleOptions} required disabled={isMyProfile} />
               <Select label={t('employee.department')} name="department" value={formData.department} options={departmentOptions} required disabled={true} />
-              {/* hireDate input: Only show if creating or if it's MyProfile and not editing */}
               {(!selectedEmployeeId || isMyProfile) && (
                 <Input label={t('employee.hireDate')} name="hireDate" type="date" value={formData.hireDate} onChange={handleInputChange} required readOnly={isMyProfile} icon={<Calendar />} />
               )}
@@ -211,26 +199,8 @@ const EmployeeDetail = ({ isMyProfile = false }) => {
                 </div>
               </Card>
 
-              {/* These sections are now purely display, actual CRUD is done on their own pages */}
-              <Card title={t('employee.onboardingTasksTitle')}>
-                <p className="text-sm text-gray-500">{t('employee.onboardingNote')}</p> {/* New translation key */}
-                {/* Simplified display or link to Onboarding page */}
-                <div className="space-y-2 mt-4">
-                  {/* For simplicity, just display placeholder tasks if we're not integrating fully here */}
-                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                      <p>Example: Complete HR onboarding (Managed on Onboarding page)</p>
-                  </div>
-                </div>
-              </Card>
-
-              <Card title={t('documents.title')}> {/* Reusing documents title */}
-                <p className="text-sm text-gray-500">{t('documents.manageDocsNote')}</p> {/* New translation key */}
-                <div className="space-y-2 mt-4">
-                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                      <p>Example: Employment Contract (Managed on Documents page)</p>
-                  </div>
-                </div>
-              </Card>
+              {/* Removed Onboarding Tasks section */}
+              {/* Removed Documents section */}
 
             </>
           )}
@@ -240,7 +210,7 @@ const EmployeeDetail = ({ isMyProfile = false }) => {
               <Button type="submit" disabled={isLoading}>{selectedEmployeeId ? t('employee.save') : t('employee.add')}</Button>
               <Button type="button" onClick={() => setCurrentPage('employees')} variant="secondary">{t('common.cancel')}</Button>
             </div>
-            {selectedEmployeeId && !isMyProfile && ( /* Ensure delete button isn't on myProfile */
+            {selectedEmployeeId && !isMyProfile && (
               <Button type="button" onClick={handleDelete} variant="danger" disabled={isLoading}><Trash2 className="w-4 h-4 mr-2" />{t('employee.delete')}</Button>
             )}
           </div>

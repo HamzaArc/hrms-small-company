@@ -4,16 +4,15 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { 
   Users, Target, Award, FileText, Clock, TrendingUp, 
   CheckCircle, AlertCircle, Calendar, BarChart2, Download, Filter, 
-  Megaphone, Star // Ensure all necessary Lucide icons are imported
+  Megaphone, Star 
 } from 'lucide-react'; 
-import Button from '../common/Button'; // Ensure Button is imported
+import Button from '../common/Button'; 
 import Card from '../common/Card';
 import Select from '../common/Select'; 
 import Input from '../common/Input'; 
 
 const Reports = () => {
   const { 
-    // Data is now sourced from HRMSContext's global states directly
     employees: globalEmployees, 
     goals: globalGoals,
     reviews: globalReviews,
@@ -22,9 +21,8 @@ const Reports = () => {
     leaveRequests: globalLeaveRequests, 
     announcements: globalAnnouncements, 
     recognitions: globalRecognitions, 
-    onboardingTasks: globalOnboardingTasks, // FIX: Destructure globalOnboardingTasks
+    onboardingTasks: globalOnboardingTasks, 
     showMessage,
-    // We explicitly call fetch functions from HRMSContext here to ensure data is loaded for reports.
     fetchEmployees, 
     fetchGoals,
     fetchReviews,
@@ -33,11 +31,10 @@ const Reports = () => {
     fetchLeaveRequests,
     fetchAnnouncements,
     fetchRecognitions,
-    fetchOnboardingTasks // FIX: Destructure fetchOnboardingTasks
+    fetchOnboardingTasks 
   } = useHRMS();
   const { t } = useLanguage();
 
-  // Local states to mirror global data, ensuring useMemo dependencies are met
   const [employees, setEmployees] = useState([]);
   const [goals, setGoals] = useState([]);
   const [reviews, setReviews] = useState([]);
@@ -46,14 +43,12 @@ const Reports = () => {
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [recognitions, setRecognitions] = useState([]);
-  const [onboardingTasks, setOnboardingTasks] = useState([]); // FIX: Local state for onboarding tasks
+  const [onboardingTasks, setOnboardingTasks] = useState([]); 
   const [isLoading, setIsLoading] = useState(true);
 
-  // States for report controls
   const [selectedReport, setSelectedReport] = useState('overview');
   const [dateRange, setDateRange] = useState('month'); 
 
-  // Report type options
   const reportTypes = useMemo(() => [
     { value: 'overview', label: t('reports.overview') },
     { value: 'employees', label: t('reports.employeeAnalytics') },
@@ -63,7 +58,6 @@ const Reports = () => {
     { value: 'engagement', label: t('reports.engagementReport') }
   ], [t]);
 
-  // Date range options (can be expanded later for dynamic ranges)
   const dateRangeOptions = useMemo(() => [
     { value: 'week', label: t('reports.last7Days') },
     { value: 'month', label: t('reports.last30Days') },
@@ -72,35 +66,42 @@ const Reports = () => {
   ], [t]);
 
 
-  // Fetch all necessary data when component mounts.
-  // We use the specific fetch functions from HRMSContext to ensure they update the global state.
   useEffect(() => {
     const loadAllDataForReports = async () => {
       setIsLoading(true);
-      // Execute all fetch operations concurrently
-      await Promise.all([
-        fetchEmployees(),
-        fetchGoals(),
-        fetchReviews(),
-        fetchDocuments(),
-        fetchTimesheets(),
-        fetchLeaveRequests(),
-        fetchAnnouncements(),
-        fetchRecognitions(),
-        fetchOnboardingTasks() // FIX: Fetch onboarding tasks here
-      ]);
+      // Ensure all fetch functions are defined before calling them
+      if (
+        fetchEmployees && fetchGoals && fetchReviews && fetchDocuments && 
+        fetchTimesheets && fetchLeaveRequests && fetchAnnouncements && 
+        fetchRecognitions && fetchOnboardingTasks
+      ) {
+        await Promise.all([
+          fetchEmployees(),
+          fetchGoals(),
+          fetchReviews(),
+          fetchDocuments(),
+          fetchTimesheets(),
+          fetchLeaveRequests(),
+          fetchAnnouncements(),
+          fetchRecognitions(),
+          fetchOnboardingTasks()
+        ]);
+      } else {
+        console.warn("One or more fetch functions are not yet available. Retrying on next render or check HRMSContext setup.");
+        // Could also introduce a retry mechanism or a more explicit loading sequence here
+      }
       setIsLoading(false);
     };
-    loadAllDataForReports();
+
+    if (true) { // This useEffect always runs if dependencies change. Removed user?.tenantId check here.
+      loadAllDataForReports();
+    }
   }, [
     fetchEmployees, fetchGoals, fetchReviews, fetchDocuments, 
     fetchTimesheets, fetchLeaveRequests, fetchAnnouncements, fetchRecognitions,
-    fetchOnboardingTasks // FIX: Added to dependencies
+    fetchOnboardingTasks // All fetchers from useHRMS context
   ]);
 
-  // Sync local states with global states (HRMSContext)
-  // This ensures that when the global states update (e.g., after a form submission on another page),
-  // the reports page's local data (and thus metrics) also update.
   useEffect(() => {
     if (globalEmployees) setEmployees(globalEmployees);
     if (globalGoals) setGoals(globalGoals);
@@ -110,39 +111,37 @@ const Reports = () => {
     if (globalLeaveRequests) setLeaveRequests(globalLeaveRequests);
     if (globalAnnouncements) setAnnouncements(globalAnnouncements);
     if (globalRecognitions) setRecognitions(globalRecognitions);
-    if (globalOnboardingTasks) setOnboardingTasks(globalOnboardingTasks); // FIX: Sync onboarding tasks
+    if (globalOnboardingTasks) setOnboardingTasks(globalOnboardingTasks); 
   }, [
     globalEmployees, globalGoals, globalReviews, globalDocuments, globalTimesheets, 
     globalLeaveRequests, globalAnnouncements, globalRecognitions, globalOnboardingTasks
   ]);
 
-
-  // Helper to get document status for overdue/expiring calculations
   const getDocumentStatus = useCallback((doc) => {
     if (!doc.expiryDate) return doc.status || 'Active';
+
     const today = new Date();
     today.setHours(0,0,0,0);
     const expiryDate = new Date(doc.expiryDate);
     expiryDate.setHours(0,0,0,0);
+    
     const diffTime = expiryDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
     if (diffDays < 0) return 'Expired';
     if (diffDays <= 90) return 'Expiring Soon';
     return doc.status || 'Active';
   }, []); 
 
-  // Calculate various statistics using memoization for performance
   const metrics = useMemo(() => {
     const now = new Date();
     const activeEmployees = employees.filter(emp => emp.status === 'Active');
     
-    // Employee metrics
     const departmentCounts = {};
     employees.forEach(emp => { 
       departmentCounts[emp.department] = (departmentCounts[emp.department] || 0) + 1;
     });
 
-    // Leave metrics
     const leavesByType = {};
     const leavesByStatus = {};
     let totalLeaveRequests = 0;
@@ -167,7 +166,6 @@ const Reports = () => {
       hoursByEmployee[employeeName] = (hoursByEmployee[employeeName] || 0) + (parseFloat(ts.hours) || 0);
     });
 
-    // Performance metrics
     const goalsByStatus = {};
     goals.forEach(goal => {
       goalsByStatus[goal.status] = (goalsByStatus[goal.status] || 0) + 1;
@@ -182,19 +180,16 @@ const Reports = () => {
         return dueDate < new Date() && goal.status !== 'Completed';
     }).length;
 
-    // Document expiry
     const overdueDocuments = documents.filter(doc => getDocumentStatus(doc) === 'Expired').length;
     const expiringSoonDocumentsList = documents.filter(doc => getDocumentStatus(doc) === 'Expiring Soon'); 
     const totalDocuments = documents.length;
 
-    // Onboarding metrics
-    const totalOnboardingTasks = onboardingTasks.length; // Use local onboardingTasks state
+    const totalOnboardingTasks = onboardingTasks.length; 
     const completedOnboardingTasks = onboardingTasks.filter(t => t.completed).length;
     const onboardingCompletionRate = totalOnboardingTasks > 0
       ? ((completedOnboardingTasks / totalOnboardingTasks) * 100).toFixed(1)
       : 'N/A';
     
-    // Engagement metrics
     const announcementsThisMonth = announcements.filter(a => {
       const date = new Date(a.publishDate); 
       return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
@@ -223,12 +218,12 @@ const Reports = () => {
         byType: leavesByType,
         byStatus: leavesByStatus,
         pending: pendingLeaveRequests,
-        utilization: (employees.length > 0 && leaveRequests.length > 0) ? // Ensure there are employees and leave requests
+        utilization: (employees.length > 0 && leaveRequests.length > 0) ? 
             ((leaveRequests.filter(lr => lr.status === 'Approved').reduce((sum, lr) => {
                 const start = new Date(lr.startDate);
                 const end = new Date(lr.endDate);
                 return sum + ((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24) + 1);
-            }, 0)) / (employees.length * 20)) * 100 || 0 : 0 // Assuming 20 working days/month average per employee
+            }, 0)) / (employees.length * 20)) * 100 || 0 : 0 
       },
       timesheet: {
         totalHours: totalHoursLogged,
@@ -243,7 +238,7 @@ const Reports = () => {
         reviewsCount: reviews.length,
         completionRate: (goals.length > 0)
           ? ((goalsByStatus['Completed'] || 0) / goals.length * 100).toFixed(1)
-          : 'N/A', // Set to N/A if no goals
+          : 'N/A', 
         overdueGoals: overdueGoals
       },
       documents: {
@@ -266,16 +261,14 @@ const Reports = () => {
         }
       }
     };
-  }, [employees, goals, reviews, documents, timesheets, leaveRequests, announcements, recognitions, onboardingTasks, getDocumentStatus]); // Added onboardingTasks to deps
+  }, [employees, goals, reviews, documents, timesheets, leaveRequests, announcements, recognitions, onboardingTasks, getDocumentStatus]); 
 
 
-  // Chart components (visual representation) - these just display data
   const BarChart = ({ data }) => { 
-    // Handle case where data might be empty or non-numeric
     const values = Object.values(data).filter(val => typeof val === 'number');
     const maxValue = values.length > 0 ? Math.max(...values) : 1; 
     
-    if (Object.keys(data).length === 0) return <p className="text-center text-gray-500">{t('reports.noDataForChart')}</p>; // New translation key
+    if (Object.keys(data).length === 0) return <p className="text-center text-gray-500">{t('reports.noDataForChart')}</p>; 
     
     return (
       <div className="space-y-3">
@@ -301,7 +294,7 @@ const Reports = () => {
     const total = Object.values(data).reduce((sum, val) => sum + (typeof val === 'number' ? val : 0), 0);
     const colors = ['bg-blue-500', 'bg-green-500', 'bg-yellow-500', 'bg-red-500', 'bg-purple-500', 'bg-indigo-500', 'bg-pink-500'];
     
-    if (total === 0) return <p className="text-center text-gray-500">{t('reports.noDataForChart')}</p>; // New translation key
+    if (total === 0) return <p className="text-center text-gray-500">{t('reports.noDataForChart')}</p>; 
 
     return (
       <div className="space-y-3">
@@ -384,7 +377,7 @@ const Reports = () => {
 
             {/* Charts */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card title={t('reports.departmentDistribution')}>
+              <Card title={t('reports.employeesByDepartment')}>
                 <BarChart data={metricsData.employees.byDepartment} />
               </Card>
               
@@ -811,6 +804,10 @@ const Reports = () => {
         return null;
     }
   };
+
+  const handleExportReport = useCallback(() => {
+    showMessage('Export report functionality is not yet implemented.', 'info');
+  }, [showMessage]);
 
   return (
     <div className="space-y-6">
