@@ -8,25 +8,25 @@ import EmployeeList from './components/pages/EmployeeList';
 import EmployeeDetail from './components/pages/EmployeeDetail';
 import LeaveManagement from './components/pages/LeaveManagement';
 import LeaveRequestForm from './components/pages/LeaveRequestForm';
-import Timesheets from './components/pages/Timesheets'; // Import Timesheets
-import TimesheetEntryForm from './components/pages/TimesheetEntryForm'; // Import TimesheetEntryForm
-import PerformanceManagement from './components/pages/PerformanceManagement'; // Import PerformanceManagement
-import GoalForm from './components/pages/GoalForm'; // Import GoalForm
-import ReviewForm from './components/pages/ReviewForm'; // Import ReviewForm
-import DocumentManagement from './components/pages/DocumentManagement'; // Import DocumentManagement
-import DocumentUploadForm from './components/pages/DocumentUploadForm'; // Import DocumentUploadForm
-import Onboarding from './components/pages/Onboarding'; // Import Onboarding
-import EmployeeEngagement from './components/pages/EmployeeEngagement'; // Import EmployeeEngagement
-import AnnouncementForm from './components/pages/AnnouncementForm'; // Import AnnouncementForm
-import RecognitionForm from './components/pages/RecognitionForm'; // Import RecognitionForm
-import HRLetters from './components/pages/HRLetters'; // Import HRLetters
-import Reports from './components/pages/Reports'; // Import Reports
+import Timesheets from './components/pages/Timesheets';
+import TimesheetEntryForm from './components/pages/TimesheetEntryForm';
+import PerformanceManagement from './components/pages/PerformanceManagement';
+import GoalForm from './components/pages/GoalForm';
+import ReviewForm from './components/pages/ReviewForm';
+import DocumentManagement from './components/pages/DocumentManagement';
+import DocumentForm from './components/pages/DocumentForm'; // CHANGED IMPORT HERE
+import Onboarding from './components/pages/Onboarding';
+import EmployeeEngagement from './components/pages/EmployeeEngagement';
+import AnnouncementForm from './components/pages/AnnouncementForm';
+import RecognitionForm from './components/pages/RecognitionForm';
+import HRLetters from './components/pages/HRLetters';
+import Reports from './components/pages/Reports';
 
 import AuthPage from './components/pages/AuthPage';
 import MessageBox from './components/common/MessageBox';
 
 function AppContent() {
-  const { currentPage, user, isLoading, logout, messageBox } = useHRMS();
+  const { currentPage, user, isLoading, logout, messageBox, selectedDocumentId } = useHRMS(); // ADDED selectedDocumentId HERE
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   if (isLoading) {
@@ -44,20 +44,21 @@ function AppContent() {
       case 'employeeDetail': return <EmployeeDetail />;
       case 'leave': return <LeaveManagement />;
       case 'leaveRequest': return <LeaveRequestForm />;
-      case 'timesheets': return <Timesheets />; {/* FIX: Add Timesheets case */}
-      case 'timesheetEntry': return <TimesheetEntryForm />; {/* FIX: Add TimesheetEntryForm case */}
-      case 'performance': return <PerformanceManagement />; {/* FIX: Add PerformanceManagement case */}
-      case 'goalForm': return <GoalForm />; {/* FIX: Add GoalForm case */}
-      case 'reviewForm': return <ReviewForm />; {/* FIX: Add ReviewForm case */}
-      case 'documents': return <DocumentManagement />; {/* FIX: Add DocumentManagement case */}
-      case 'documentUpload': return <DocumentUploadForm />; {/* FIX: Add DocumentUploadForm case */}
-      case 'onboarding': return <Onboarding />; {/* FIX: Add Onboarding case */}
-      case 'engagement': return <EmployeeEngagement />; {/* FIX: Add EmployeeEngagement case */}
-      case 'announcementForm': return <AnnouncementForm />; {/* FIX: Add AnnouncementForm case */}
-      case 'recognitionForm': return <RecognitionForm />; {/* FIX: Add RecognitionForm case */}
-      case 'letters': return <HRLetters />; {/* FIX: Add HRLetters case */}
-      case 'reports': return <Reports />; {/* FIX: Add Reports case */}
-      case 'myProfile': return <EmployeeDetail isMyProfile={true} />; {/* FIX: Add My Profile case, reusing EmployeeDetail */}
+      case 'timesheets': return <Timesheets />;
+      case 'timesheetEntry': return <TimesheetEntryForm />;
+      case 'performance': return <PerformanceManagement />;
+      case 'goalForm': return <GoalForm />;
+      case 'reviewForm': return <ReviewForm />;
+      case 'documents': return <DocumentManagement />;
+      case 'documentForm': return <DocumentForm />; // CHANGED THIS CASE (used for creating)
+      case 'documentEdit': return <DocumentForm documentId={selectedDocumentId} />; // NEW CASE FOR EDITING
+      case 'onboarding': return <Onboarding />;
+      case 'engagement': return <EmployeeEngagement />;
+      case 'announcementForm': return <AnnouncementForm />;
+      case 'recognitionForm': return <RecognitionForm />;
+      case 'letters': return <HRLetters />;
+      case 'reports': return <Reports />;
+      case 'myProfile': return <EmployeeDetail isMyProfile={true} />;
       default: return <Dashboard />;
     }
   };

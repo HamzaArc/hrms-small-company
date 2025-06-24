@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useHRMS } from '../../contexts/HRMSContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Award, Star, Target, User, MessageSquare } from 'lucide-react';
@@ -11,11 +11,11 @@ import Card from '../common/Card';
 const ReviewForm = () => {
   const { 
     employees, 
-    goals, 
-    reviews, 
-    setReviews, 
     setCurrentPage,
-    showMessage 
+    showMessage,
+    postData, // For sending new review data to backend
+    fetchReviews, // To re-fetch reviews after creation
+    fetchData // To fetch goals for linking
   } = useHRMS();
   const { t } = useLanguage();
 
@@ -35,13 +35,26 @@ const ReviewForm = () => {
   });
 
   const [errors, setErrors] = useState({});
+  const [isLoading, setIsLoading] = useState(false); // New loading state
+  const [allGoals, setAllGoals] = useState([]); // To store all goals for linking
 
-  const activeEmployees = employees
+  // Fetch all goals when component mounts to populate linked goals options
+  useEffect(() => {
+    const loadGoals = async () => {
+      const fetchedGoals = await fetchData('/goals');
+      if (fetchedGoals) {
+        setAllGoals(fetchedGoals);
+      }
+    };
+    loadGoals();
+  }, [fetchData]);
+
+  const activeEmployees = useMemo(() => employees
     .filter(emp => emp.status === 'Active')
     .map(emp => ({
       value: emp.id,
       label: `${emp.firstName} ${emp.lastName}`
-    }));
+    })), [employees]);
 
   const reviewPeriods = [
     { value: 'Q1-2025', label: 'Q1 2025' },
@@ -50,13 +63,13 @@ const ReviewForm = () => {
     { value: 'Mid-Year-2025', label: 'Mid-Year 2025' }
   ];
 
-  // Get goals for selected employee
+  // Get goals for selected employee to show in the "Related Goals" section
   const employeeGoals = useMemo(() => {
     if (!formData.employeeId) return [];
-    return goals.filter(goal => goal.employeeId === formData.employeeId);
-  }, [goals, formData.employeeId]);
+    return allGoals.filter(goal => goal.employeeId === formData.employeeId);
+  }, [allGoals, formData.employeeId]);
 
-  const handleInputChange = (e) => {
+  const handleInputChange = useCallback((e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -65,43 +78,42 @@ const ReviewForm = () => {
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
-  };
+  }, [errors]);
 
-  const handleRatingChange = (category, rating) => {
-    setFormData(prev => ({
-      ...prev,
-      [category]: rating
-    }));
-    
-    // Calculate overall rating
-    if (category !== 'overallRating') {
-      const ratings = [
-        category === 'performanceRating' ? rating : formData.performanceRating,
-        category === 'communicationRating' ? rating : formData.communicationRating,
-        category === 'teamworkRating' ? rating : formData.teamworkRating,
-        category === 'innovationRating' ? rating : formData.innovationRating
-      ].filter(r => r > 0);
+  const handleRatingChange = useCallback((category, rating) => {
+    setFormData(prev => {
+      const updatedRatings = { ...prev, [category]: rating };
       
-      if (ratings.length > 0) {
-        const average = ratings.reduce((sum, r) => sum + r, 0) / ratings.length;
-        setFormData(prev => ({
-          ...prev,
-          overallRating: Math.round(average * 10) / 10
-        }));
+      // Calculate overall rating if not directly setting it
+      if (category !== 'overallRating') {
+        const ratingsArray = [
+          updatedRatings.performanceRating,
+          updatedRatings.communicationRating,
+          updatedRatings.teamworkRating,
+          updatedRatings.innovationRating
+        ].filter(r => r > 0); // Only consider ratings that have been set
+        
+        if (ratingsArray.length > 0) {
+          const average = ratingsArray.reduce((sum, r) => sum + r, 0) / ratingsArray.length;
+          updatedRatings.overallRating = Math.round(average * 10) / 10;
+        } else {
+          updatedRatings.overallRating = 0;
+        }
       }
-    }
-  };
+      return updatedRatings;
+    });
+  }, []);
 
-  const handleGoalToggle = (goalId) => {
+  const handleGoalToggle = useCallback((goalId) => {
     setFormData(prev => ({
       ...prev,
       linkedGoals: prev.linkedGoals.includes(goalId)
         ? prev.linkedGoals.filter(id => id !== goalId)
         : [...prev.linkedGoals, goalId]
     }));
-  };
+  }, []);
 
-  const validateForm = () => {
+  const validateForm = useCallback(() => {
     const newErrors = {};
 
     if (!formData.employeeId) {
@@ -113,7 +125,12 @@ const ReviewForm = () => {
     if (!formData.reviewPeriod) {
       newErrors.reviewPeriod = 'Please select review period';
     }
-    if (formData.overallRating === 0) {
+    // Check if at least one specific rating is provided, or overall is > 0
+    if (formData.overallRating === 0 &&
+        formData.performanceRating === 0 &&
+        formData.communicationRating === 0 &&
+        formData.teamworkRating === 0 &&
+        formData.innovationRating === 0) {
       newErrors.rating = 'Please provide ratings';
     }
     if (!formData.comments) {
@@ -122,27 +139,23 @@ const ReviewForm = () => {
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
+  }, [formData]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
+    setIsLoading(true); // Set loading true
 
     if (!validateForm()) {
+      setIsLoading(false);
       return;
     }
 
-    const employee = employees.find(emp => emp.id === formData.employeeId);
-    
-    const newReview = {
-      id: `review-${Date.now()}`,
+    const payload = {
       employeeId: formData.employeeId,
-      employeeName: `${employee.firstName} ${employee.lastName}`,
-      reviewDate: new Date().toISOString().split('T')[0],
       reviewer: formData.reviewer,
       reviewPeriod: formData.reviewPeriod,
-      rating: formData.overallRating,
-      ratings: {
-        overall: formData.overallRating,
+      rating: formData.overallRating, // Overall rating
+      ratings: { // Detailed ratings
         performance: formData.performanceRating,
         communication: formData.communicationRating,
         teamwork: formData.teamworkRating,
@@ -152,21 +165,27 @@ const ReviewForm = () => {
       improvements: formData.improvements,
       comments: formData.comments,
       linkedGoals: formData.linkedGoals
+      // reviewDate will be set by backend
     };
 
-    setReviews(prev => [...prev, newReview]);
-    showMessage('Performance review submitted successfully', 'success');
-    setCurrentPage('performance');
-  };
+    const result = await postData('/reviews', payload, 'Performance review submitted successfully', 'Failed to submit review');
+    
+    if (result) {
+      await fetchReviews(); // Re-fetch reviews to update the PerformanceManagement list
+      setCurrentPage('performance'); // Navigate back
+    }
+    
+    setIsLoading(false); // Set loading false
+  }, [formData, validateForm, postData, fetchReviews, setCurrentPage, showMessage]);
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     setCurrentPage('performance');
-  };
+  }, [setCurrentPage]);
 
   const RatingStars = ({ rating, onRatingChange, category, label }) => {
     return (
       <div className="space-y-2">
-        <label className="text-sm font-medium text-gray-700">{label}</label>
+        <label className="block text-sm font-medium text-gray-700">{label}</label>
         <div className="flex items-center space-x-2">
           {[1, 2, 3, 4, 5].map((star) => (
             <button
@@ -185,7 +204,7 @@ const ReviewForm = () => {
             </button>
           ))}
           <span className="ml-2 text-sm text-gray-600">
-            {rating > 0 && `${rating}.0`}
+            {rating > 0 ? `${rating}.0` : '0.0'}
           </span>
         </div>
       </div>
@@ -201,7 +220,7 @@ const ReviewForm = () => {
         <Card title="Review Information">
           <div className="space-y-4">
             <Select
-              label="Employee"
+              label={t('onboarding.employee')}
               name="employeeId"
               value={formData.employeeId}
               onChange={handleInputChange}
@@ -277,7 +296,7 @@ const ReviewForm = () => {
                 <div className="flex items-center space-x-2">
                   <Star className="w-6 h-6 text-yellow-400 fill-current" />
                   <span className="text-2xl font-bold text-gray-800">
-                    {formData.overallRating || '0.0'}
+                    {formData.overallRating > 0 ? formData.overallRating.toFixed(1) : '0.0'}
                   </span>
                   <span className="text-gray-600">/ 5.0</span>
                 </div>
@@ -288,7 +307,7 @@ const ReviewForm = () => {
 
         {/* Linked Goals */}
         {employeeGoals.length > 0 && (
-          <Card title="Related Goals">
+          <Card title={t('performance.relatedGoals')}>
             <div className="space-y-2">
               <p className="text-sm text-gray-600 mb-3">
                 Select goals that were evaluated in this review:
@@ -307,7 +326,7 @@ const ReviewForm = () => {
                   <div className="flex-1">
                     <p className="font-medium text-gray-800">{goal.objective}</p>
                     <p className="text-sm text-gray-600">
-                      Status: {goal.status} • Due: {new Date(goal.dueDate).toLocaleDateString()}
+                      Status: {t(`common.${goal.status.replace(/\s/g, '').toLowerCase()}`)} • Due: {new Date(goal.dueDate).toLocaleDateString()}
                     </p>
                   </div>
                 </label>
@@ -359,9 +378,9 @@ const ReviewForm = () => {
           >
             {t('common.cancel')}
           </Button>
-          <Button type="submit">
+          <Button type="submit" disabled={isLoading}>
             <Award className="w-4 h-4 mr-2" />
-            Submit Review
+            {isLoading ? t('common.loading') : 'Submit Review'}
           </Button>
         </div>
       </form>

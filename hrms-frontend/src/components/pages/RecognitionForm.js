@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useHRMS } from '../../contexts/HRMSContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { Award, Star, Heart, Trophy, Target, Users } from 'lucide-react';
+import { Award, Star, Heart, Trophy, Target, Users, Save } from 'lucide-react';
 import Button from '../common/Button';
 import Select from '../common/Select';
 import TextArea from '../common/TextArea';
@@ -10,10 +10,10 @@ import Card from '../common/Card';
 const RecognitionForm = () => {
   const { 
     employees, 
-    recognitions, 
-    setRecognitions, 
     setCurrentPage,
-    showMessage 
+    showMessage,
+    postData, 
+    fetchRecognitions 
   } = useHRMS();
   const { t } = useLanguage();
 
@@ -26,13 +26,14 @@ const RecognitionForm = () => {
   });
 
   const [errors, setErrors] = useState({});
+  const [isLoading, setIsLoading] = useState(false); // Manages loading state for submission
 
-  const activeEmployees = employees
+  const activeEmployees = useMemo(() => employees
     .filter(emp => emp.status === 'Active')
     .map(emp => ({
       value: emp.id,
       label: `${emp.firstName} ${emp.lastName} - ${emp.role}`
-    }));
+    })), [employees]);
 
   const categoryOptions = [
     { value: 'teamwork', label: 'Outstanding Teamwork', icon: Users },
@@ -71,26 +72,27 @@ const RecognitionForm = () => {
     }
   ];
 
-  const handleInputChange = (e) => {
+  const handleInputChange = useCallback((e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+    // Remove specific error when input changes
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
-  };
+  }, [errors]); // Dependency on errors to clear them
 
-  const handleTemplateSelect = (template) => {
+  const handleTemplateSelect = useCallback((template) => {
     setFormData(prev => ({
       ...prev,
       category: template.category,
       message: template.message
     }));
-  };
+  }, []); // No external dependencies
 
-  const validateForm = () => {
+  const validateForm = useCallback(() => {
     const newErrors = {};
 
     if (!formData.recipientId) {
@@ -111,45 +113,55 @@ const RecognitionForm = () => {
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
+  }, [formData]); // Dependency on formData for validation
 
-  const handleSubmit = (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
+    setIsLoading(true);
 
     if (!validateForm()) {
+      setIsLoading(false);
       return;
     }
 
+    // `employees` is from context, ensure it's up-to-date if needed, but for recipient lookup it's fine.
     const recipient = employees.find(emp => emp.id === formData.recipientId);
     
-    const newRecognition = {
-      id: `rec-${Date.now()}`,
+    const payload = {
       recipientId: formData.recipientId,
-      recipientName: `${recipient.firstName} ${recipient.lastName}`,
       category: formData.category,
       value: formData.value,
       message: formData.message,
-      date: new Date().toISOString().split('T')[0],
-      givenBy: 'Current User', // In real app, this would be the logged-in user
-      isPublic: formData.isPublic
+      givenBy: 'Current User', // In real app, this would be the logged-in user's name or ID
+      isPublic: formData.isPublic,
+      // date will be set by the backend
     };
 
-    setRecognitions(prev => [newRecognition, ...prev]);
-    showMessage('Recognition sent successfully! 🎉', 'success');
-    setCurrentPage('engagement');
-  };
+    const result = await postData('/recognitions', payload, 'Recognition sent successfully! 🎉', 'Failed to send recognition');
+    
+    if (result) {
+      await fetchRecognitions(); // Re-fetch recognitions to update the main Engagement page
+      setCurrentPage('engagement'); // Navigate back
+    }
+    
+    setIsLoading(false);
+  }, [formData, validateForm, employees, postData, fetchRecognitions, setCurrentPage, showMessage]); // Added all dependencies
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     setCurrentPage('engagement');
-  };
+  }, [setCurrentPage]); // Dependency on setCurrentPage
 
-  const getSelectedCategory = () => {
+  // Memoized getter for selected category to ensure stability and re-evaluation when category changes
+  const getSelectedCategory = useCallback(() => {
     return categoryOptions.find(cat => cat.value === formData.category);
-  };
+  }, [formData.category]); // Dependency on formData.category
 
-  const selectedRecipient = formData.recipientId 
-    ? employees.find(emp => emp.id === formData.recipientId)
-    : null;
+  // Memoized selected recipient for efficient re-renders
+  const selectedRecipient = useMemo(() => {
+    return formData.recipientId 
+      ? employees.find(emp => emp.id === formData.recipientId)
+      : null;
+  }, [formData.recipientId, employees]);
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -287,7 +299,11 @@ const RecognitionForm = () => {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  {getSelectedCategory() && <getSelectedCategory.icon className="w-6 h-6 text-yellow-600" />}
+                  {/* FIX: Correctly access the icon component and render it only if it exists */}
+                  {(() => {
+                    const Icon = getSelectedCategory()?.icon;
+                    return Icon ? <Icon className="w-6 h-6 text-yellow-600" /> : null;
+                  })()}
                   <div>
                     <p className="font-semibold text-gray-800">
                       {selectedRecipient?.firstName} {selectedRecipient?.lastName}
@@ -323,9 +339,9 @@ const RecognitionForm = () => {
           >
             {t('common.cancel')}
           </Button>
-          <Button type="submit">
+          <Button type="submit" disabled={isLoading}>
             <Award className="w-4 h-4 mr-2" />
-            Send Recognition
+            {isLoading ? t('common.loading') : 'Send Recognition'}
           </Button>
         </div>
       </form>

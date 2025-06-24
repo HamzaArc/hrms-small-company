@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react'; // Added useCallback
 import { useHRMS } from '../../contexts/HRMSContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { Megaphone, Calendar, Users, AlertCircle } from 'lucide-react';
+import { Megaphone, Calendar, Users, AlertCircle, Save } from 'lucide-react'; // Added Save icon
 import Button from '../common/Button';
 import Input from '../common/Input';
 import Select from '../common/Select';
@@ -10,10 +10,10 @@ import Card from '../common/Card';
 
 const AnnouncementForm = () => {
   const { 
-    announcements, 
-    setAnnouncements, 
     setCurrentPage,
-    showMessage 
+    showMessage,
+    postData, // For sending new announcement data to backend
+    fetchAnnouncements // To re-fetch announcements after creation
   } = useHRMS();
   const { t } = useLanguage();
 
@@ -29,6 +29,7 @@ const AnnouncementForm = () => {
 
   const [preview, setPreview] = useState(false);
   const [errors, setErrors] = useState({});
+  const [isLoading, setIsLoading] = useState(false); // New loading state for submission
 
   const categoryOptions = [
     { value: 'general', label: 'General' },
@@ -72,7 +73,7 @@ const AnnouncementForm = () => {
     }
   ];
 
-  const handleInputChange = (e) => {
+  const handleInputChange = useCallback((e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -81,18 +82,18 @@ const AnnouncementForm = () => {
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
-  };
+  }, [errors]);
 
-  const handleTemplateSelect = (template) => {
+  const handleTemplateSelect = useCallback((template) => {
     setFormData(prev => ({
       ...prev,
       title: template.title,
       content: template.content,
       category: template.category
     }));
-  };
+  }, []);
 
-  const validateForm = () => {
+  const validateForm = useCallback(() => {
     const newErrors = {};
 
     if (!formData.title) {
@@ -112,38 +113,44 @@ const AnnouncementForm = () => {
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
+  }, [formData]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
+    setIsLoading(true); // Set loading true
 
     if (!validateForm()) {
+      setIsLoading(false);
       return;
     }
 
-    const newAnnouncement = {
-      id: `ann-${Date.now()}`,
+    const payload = {
       title: formData.title,
       content: formData.content,
       category: formData.category,
       priority: formData.priority,
       audience: formData.audience,
-      date: formData.publishDate,
-      expiryDate: formData.expiryDate,
-      author: 'HR Team', // In real app, this would be the logged-in user
-      isActive: true
+      publishDate: formData.publishDate,
+      expiryDate: formData.expiryDate || null,
+      author: 'HR Team', // In real app, this would be the logged-in user's name
+      isActive: true // Default to active
     };
 
-    setAnnouncements(prev => [newAnnouncement, ...prev]);
-    showMessage('Announcement published successfully', 'success');
-    setCurrentPage('engagement');
-  };
+    const result = await postData('/announcements', payload, 'Announcement published successfully', 'Failed to publish announcement');
+    
+    if (result) {
+      await fetchAnnouncements(); // Re-fetch announcements to update the main page
+      setCurrentPage('engagement'); // Navigate back
+    }
+    
+    setIsLoading(false); // Set loading false
+  }, [formData, validateForm, postData, fetchAnnouncements, setCurrentPage, showMessage]);
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     setCurrentPage('engagement');
-  };
+  }, [setCurrentPage]);
 
-  const getPriorityColor = (priority) => {
+  const getPriorityColor = useCallback((priority) => {
     switch (priority) {
       case 'urgent':
         return 'text-red-600 bg-red-50 border-red-200';
@@ -156,7 +163,7 @@ const AnnouncementForm = () => {
       default:
         return 'text-gray-600 bg-gray-50 border-gray-200';
     }
-  };
+  }, []);
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -333,9 +340,9 @@ const AnnouncementForm = () => {
           >
             {t('common.cancel')}
           </Button>
-          <Button type="submit">
+          <Button type="submit" disabled={isLoading}>
             <Megaphone className="w-4 h-4 mr-2" />
-            Publish Announcement
+            {isLoading ? t('common.loading') : 'Publish Announcement'}
           </Button>
         </div>
       </form>

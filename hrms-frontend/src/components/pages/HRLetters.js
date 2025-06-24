@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useHRMS } from '../../contexts/HRMSContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { 
@@ -11,7 +11,7 @@ import Input from '../common/Input';
 import Card from '../common/Card';
 
 const HRLetters = () => {
-  const { employees, showMessage } = useHRMS();
+  const { employees, showMessage, tenant, user } = useHRMS();
   const { t } = useLanguage();
 
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
@@ -27,234 +27,238 @@ const HRLetters = () => {
   const [generatedLetter, setGeneratedLetter] = useState('');
   const [copied, setCopied] = useState(false);
 
-  const employeeOptions = employees
+  const employeeOptions = useMemo(() => employees
     .filter(emp => emp.status === 'Active')
     .map(emp => ({
       value: emp.id,
       label: `${emp.firstName} ${emp.lastName} - ${emp.role}`
-    }));
+    })), [employees]);
 
-  const letterTypes = [
+  const letterTypes = useMemo(() => [
     { value: 'employment', label: t('letters.employment') },
     { value: 'salary', label: t('letters.salary') },
-    { value: 'experience', label: 'Experience Certificate' },
-    { value: 'promotion', label: 'Promotion Letter' },
-    { value: 'confirmation', label: 'Confirmation Letter' },
-    { value: 'appreciation', label: 'Letter of Appreciation' }
-  ];
+    { value: 'experience', label: t('letters.experience') },
+    { value: 'promotion', label: t('letters.promotion') },   
+    { value: 'confirmation', label: t('letters.confirmation') }, 
+    { value: 'appreciation', label: t('letters.appreciation') }  
+  ], [t]);
 
-  const selectedEmployee = employees.find(emp => emp.id === selectedEmployeeId);
+  const selectedEmployee = useMemo(() => employees.find(emp => emp.id === selectedEmployeeId), [employees, selectedEmployeeId]);
 
-  const handleGenerateLetter = () => {
+  const handleGenerateLetter = useCallback(() => {
     if (!selectedEmployeeId || !letterType) {
-      showMessage('Please select both employee and letter type', 'error');
+      showMessage(t('letters.selectEmployeeAndType'), 'error');
+      setGeneratedLetter('');
       return;
     }
 
-    let letter = '';
-    const today = new Date().toLocaleDateString('en-US', { 
+    let letterContent = '';
+    const todayFormatted = new Date().toLocaleDateString('en-US', { 
       year: 'numeric', 
       month: 'long', 
       day: 'numeric' 
     });
 
     const companyInfo = {
-      name: 'TechCorp Solutions Inc.',
-      address: '123 Business Plaza, Suite 500',
-      city: 'New York, NY 10001',
-      phone: '+1 (555) 123-4567',
-      email: 'hr@techcorp.com'
+      name: tenant?.name || 'Your Company Name',
+      address: '123 Business Plaza, Suite 500', // Placeholder, ideally from tenant data
+      city: 'Headquarters City, ZIP', // Placeholder
+      phone: '+1 (XXX) XXX-XXXX', // Placeholder
+      email: tenant?.contactEmail || 'contact@yourcompany.com' 
     };
 
-    // Common header for all letters
+    const defaultSignerName = user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : 'HR Manager';
+    const defaultSignerTitle = user?.role === 'admin' ? 'Admin' : 'HR Manager';
+
+
     const header = `${companyInfo.name}
 ${companyInfo.address}
 ${companyInfo.city}
 Tel: ${companyInfo.phone}
 Email: ${companyInfo.email}
 
-Date: ${today}
+Date: ${todayFormatted}
 
-${customFields.addressedTo ? `To: ${customFields.addressedTo}\n\n` : ''}`;
+${customFields.addressedTo ? `${t('letters.to')}: ${customFields.addressedTo}\n\n` : ''}`;
 
     switch (letterType) {
       case 'employment':
-        letter = `${header}EMPLOYMENT VERIFICATION LETTER
+        letterContent = `${header}${t('letters.employmentLetterTitle')}
 
-To Whom It May Concern,
+${t('letters.toWhomItMayConcern')},
 
-This letter is to confirm that ${selectedEmployee.firstName} ${selectedEmployee.lastName} is currently employed with ${companyInfo.name} as a ${selectedEmployee.role} in our ${selectedEmployee.department} department.
+${t('letters.employmentConfirmStart')} ${selectedEmployee.firstName} ${selectedEmployee.lastName} ${t('letters.employmentConfirmMid')} ${companyInfo.name} ${t('letters.employmentConfirmEnd')} ${selectedEmployee.role} ${t('letters.inOur')} ${selectedEmployee.department} ${t('letters.department')}.
 
-${selectedEmployee.firstName} has been employed with our organization since ${new Date(selectedEmployee.hireDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} and is currently an active employee in good standing.
+${selectedEmployee.firstName} ${t('letters.employmentSince')} ${new Date(selectedEmployee.hireDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} ${t('letters.andIsCurrently')}.
 
-${customFields.includeJobDescription ? `\nJob Responsibilities:\n• Develop and maintain software applications\n• Collaborate with cross-functional teams\n• Participate in code reviews and technical discussions\n• Contribute to project planning and execution\n` : ''}
+${customFields.includeJobDescription ? `\n${t('letters.jobResponsibilities')}:\n• ${t('letters.jobDuty1')}\n• ${t('letters.jobDuty2')}\n• ${t('letters.jobDuty3')}\n• ${t('letters.jobDuty4')}\n` : ''}
 
-${customFields.includeCompensation ? `\nThis employment is on a full-time basis with standard company benefits including health insurance, paid time off, and retirement plans.\n` : ''}
+${customFields.includeCompensation ? `\n${t('letters.compensationInfo')}\n` : ''}
 
-${customFields.purpose ? `\nThis letter is being provided at the request of the employee for ${customFields.purpose}.\n` : ''}
+${customFields.purpose ? `\n${t('letters.purposeTextStart')} ${customFields.purpose}.${t('letters.purposeTextEnd')}\n` : ''}
 
-If you require any additional information, please feel free to contact our Human Resources department at the above contact information.
+${t('letters.additionalInfoContact')}.
 
-Sincerely,
+${t('letters.sincerely')},
 
 _____________________
-Carol Williams
-HR Manager
+${defaultSignerName}
+${defaultSignerTitle}
 ${companyInfo.name}`;
         break;
 
       case 'salary':
-        letter = `${header}SALARY CERTIFICATE
+        letterContent = `${header}${t('letters.salaryCertificateTitle')}
 
-This is to certify that ${selectedEmployee.firstName} ${selectedEmployee.lastName}, holding the position of ${selectedEmployee.role} in our ${selectedEmployee.department} department, is employed with ${companyInfo.name} since ${new Date(selectedEmployee.hireDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.
+${t('letters.thisIsToCertify')} ${selectedEmployee.firstName} ${selectedEmployee.lastName}, ${t('letters.holdingPosition')} ${selectedEmployee.role} ${t('letters.inOur')} ${selectedEmployee.department} ${t('letters.department')}, ${t('letters.isEmployedSince')} ${new Date(selectedEmployee.hireDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.
 
-Current Compensation Details:
-• Annual Base Salary: $85,000 USD
-• Monthly Gross Salary: $7,083.33 USD
-• Payment Frequency: Bi-weekly
+${t('letters.currentCompensationDetails')}:
+• ${t('letters.annualBaseSalary')}: $85,000 USD
+• ${t('letters.monthlyGrossSalary')}: $7,083.33 USD
+• ${t('letters.paymentFrequency')}: Bi-weekly
 
-${customFields.includeBenefits ? `\nAdditional Benefits:\n• Health Insurance (Medical, Dental, Vision)\n• Life Insurance\n• 401(k) Retirement Plan with company matching\n• Paid Time Off (${selectedEmployee.leaveBalances.vacation} days annually)\n• Professional Development Allowance\n` : ''}
+${customFields.includeBenefits ? `\n${t('letters.additionalBenefits')}:\n• ${t('letters.benefit1')}\n• ${t('letters.benefit2')}\n• ${t('letters.benefit3')}\n• ${t('letters.benefit4', { days: selectedEmployee.vacationBalance || 0 })}\n• ${t('letters.benefit5', { days: selectedEmployee.sickBalance || 0 })}\n• ${t('letters.benefit6', { days: selectedEmployee.personalBalance || 0 })}\n` : ''} {/* FIX: Added sick and personal days and their translation keys */}
 
-This certificate is issued upon the request of the employee${customFields.purpose ? ` for ${customFields.purpose}` : ''}.
+${t('letters.certificateIssuedPurposeStart')} ${customFields.purpose ? `${t('letters.certificateIssuedPurposeMid')} ${customFields.purpose}.` : '.'}
 
-For verification of this information, please contact our HR department.
+${t('letters.verificationContact')}.
 
-Sincerely,
+${t('letters.sincerely')},
 
 _____________________
-Carol Williams
-HR Manager
+${defaultSignerName}
+${defaultSignerTitle}
 ${companyInfo.name}`;
         break;
 
       case 'experience':
-        letter = `${header}EXPERIENCE CERTIFICATE
+        letterContent = `${header}${t('letters.experienceCertificateTitle')}
 
-This is to certify that ${selectedEmployee.firstName} ${selectedEmployee.lastName} has been employed with ${companyInfo.name} from ${new Date(selectedEmployee.hireDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} to present as a ${selectedEmployee.role}.
+${t('letters.thisIsToCertify')} ${selectedEmployee.firstName} ${selectedEmployee.lastName} ${t('letters.employedFrom')} ${new Date(selectedEmployee.hireDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} ${t('letters.toPresentAs')} ${selectedEmployee.role}.
 
-During their tenure with our organization, ${selectedEmployee.firstName} has:
+${t('letters.duringTenure')}:
 
-• Demonstrated excellent technical skills and professional competence
-• Successfully completed multiple projects and deliverables
-• Shown strong teamwork and collaboration abilities
-• Maintained high standards of work quality and ethics
-• Contributed significantly to team and organizational goals
+• ${t('letters.experienceBullet1')}
+• ${t('letters.experienceBullet2')}
+• ${t('letters.experienceBullet3')}
+• ${t('letters.experienceBullet4')}
+• ${t('letters.experienceBullet5')}
 
-${selectedEmployee.firstName} has been a valuable member of our team and we appreciate their contributions to our organization.
+${selectedEmployee.firstName} ${t('letters.valuableMember')}.
 
-We wish them continued success in their professional endeavors.
+${t('letters.wishSuccess')}.
 
-Sincerely,
+${t('letters.sincerely')},
 
 _____________________
-Carol Williams
-HR Manager
+${defaultSignerName}
+${defaultSignerTitle}
 ${companyInfo.name}`;
         break;
 
       case 'promotion':
-        letter = `${header}PROMOTION LETTER
+        letterContent = `${header}${t('letters.promotionLetterTitle')}
 
-Dear ${selectedEmployee.firstName} ${selectedEmployee.lastName},
+${t('letters.dear')} ${selectedEmployee.firstName} ${selectedEmployee.lastName},
 
-We are pleased to inform you that based on your outstanding performance and valuable contributions to ${companyInfo.name}, you have been promoted to the position of Senior ${selectedEmployee.role}, effective ${customFields.effectiveDate}.
+${t('letters.pleasedToInform')} ${companyInfo.name}, ${t('letters.promotedTo')} Senior ${selectedEmployee.role}, ${t('letters.effective')} ${new Date(customFields.effectiveDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.
 
-Your new responsibilities will include:
-• Leading technical initiatives and mentoring junior team members
-• Contributing to strategic planning and decision-making
-• Managing key client relationships and projects
-• Driving innovation and process improvements
+${t('letters.newResponsibilities')}:
+• ${t('letters.responsibility1')}
+• ${t('letters.responsibility2')}
+• ${t('letters.responsibility3')}
+• ${t('letters.responsibility4')}
 
-Your compensation package has been revised as follows:
-• New Annual Salary: $105,000 USD
-• Performance Bonus Eligibility: Up to 20% of base salary
-• Additional Stock Options: 500 units
+${t('letters.compensationRevised')}:
+• ${t('letters.newAnnualSalary')}: $105,000 USD
+• ${t('letters.performanceBonus')}: Up to 20% of base salary
+• ${t('letters.additionalStockOptions')}: 500 units
 
-All other benefits and terms of employment remain unchanged.
+${t('letters.otherTermsUnchanged')}.
 
-We are confident that you will excel in your new role and continue to be a valuable asset to our organization.
+${t('letters.confidentInRole')}.
 
-Congratulations on this well-deserved promotion!
+${t('letters.congratulations')}.
 
-Sincerely,
+${t('letters.sincerely')},
 
 _____________________
-John Smith
+John Smith {/* FIX: This signer name/title is still hardcoded for now, for simplicity. Can be made dynamic from user input later if required. */}
 CEO
 ${companyInfo.name}`;
         break;
 
       case 'confirmation':
-        letter = `${header}CONFIRMATION OF EMPLOYMENT
+        letterContent = `${header}${t('letters.confirmationLetterTitle')}
 
-Dear ${selectedEmployee.firstName} ${selectedEmployee.lastName},
+${t('letters.dear')} ${selectedEmployee.firstName} ${selectedEmployee.lastName},
 
-We are pleased to confirm your employment with ${companyInfo.name} as a permanent ${selectedEmployee.role} in the ${selectedEmployee.department} department, effective ${customFields.effectiveDate}.
+${t('letters.pleasedToConfirmEmployment')} ${companyInfo.name} ${t('letters.permanentPosition')} ${selectedEmployee.role} ${t('letters.inThe')} ${selectedEmployee.department} ${t('letters.department')}, ${t('letters.effective')} ${new Date(customFields.effectiveDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.
 
-Having successfully completed your probationary period, we are happy to confirm you as a permanent member of our team. Your performance during the probation period has been satisfactory, and we believe you will continue to be a valuable contributor to our organization.
+${t('letters.probationSuccess')}.
 
-Terms of Employment:
-• Position: ${selectedEmployee.role}
-• Department: ${selectedEmployee.department}
-• Employment Type: Full-time, Permanent
-• Work Location: ${companyInfo.city}
+${t('letters.termsOfEmployment')}:
+• ${t('letters.position')}: ${selectedEmployee.role}
+• ${t('letters.department')}: ${selectedEmployee.department}
+• ${t('letters.employmentType')}: ${t('letters.fullTimePermanent')}
+• ${t('letters.workLocation')}: ${companyInfo.city}
 
-Please acknowledge receipt of this letter by signing and returning a copy to the HR department.
+${t('letters.acknowledgeReceipt')}.
 
-We look forward to your continued association with ${companyInfo.name}.
+${t('letters.lookForwardContinued')}.
 
-Sincerely,
+${t('letters.sincerely')},
 
 _____________________
-Carol Williams
-HR Manager
+${defaultSignerName}
+${defaultSignerTitle}
 ${companyInfo.name}`;
         break;
 
       case 'appreciation':
-        letter = `${header}LETTER OF APPRECIATION
+        letterContent = `${header}${t('letters.appreciationLetterTitle')}
 
-Dear ${selectedEmployee.firstName} ${selectedEmployee.lastName},
+${t('letters.dear')} ${selectedEmployee.firstName} ${selectedEmployee.lastName},
 
-On behalf of ${companyInfo.name}, I would like to express our sincere appreciation for your exceptional performance and dedication to your role as ${selectedEmployee.role}.
+${t('letters.onBehalfOf')} ${companyInfo.name}, ${t('letters.sincereAppreciationStart')} ${selectedEmployee.role}.
 
-Your recent contributions, particularly in the successful completion of the Q2 project deliverables, have been instrumental in achieving our departmental goals. Your technical expertise, problem-solving abilities, and collaborative approach have set a high standard for the team.
+${t('letters.recentContributions')}
 
-Specific achievements we would like to recognize:
-• Successfully led the implementation of new features that improved system efficiency by 30%
-• Mentored new team members, contributing to their rapid integration
-• Consistently delivered high-quality work within tight deadlines
-• Demonstrated initiative in identifying and resolving technical challenges
+${t('letters.specificAchievements')}:
+• ${t('letters.achievement1')}
+• ${t('letters.achievement2')}
+• ${t('letters.achievement3')}
+• ${t('letters.achievement4')}
 
-Your positive attitude and commitment to excellence have not gone unnoticed. You are a valued member of our team, and we are fortunate to have you as part of ${companyInfo.name}.
+${t('letters.positiveAttitude')}.
 
-Thank you for your continued hard work and dedication.
+${t('letters.thankYouContinued')}.
 
-Sincerely,
+${t('letters.sincerely')},
 
 _____________________
-Sarah Johnson
+Sarah Johnson {/* FIX: This signer name/title is still hardcoded for now. */}
 Department Head
 ${selectedEmployee.department}
 ${companyInfo.name}`;
         break;
 
       default:
-        letter = 'Please select a letter type';
+        letterContent = t('letters.selectLetterTypeDefault');
     }
 
-    setGeneratedLetter(letter);
-  };
+    setGeneratedLetter(letterContent);
+  }, [selectedEmployeeId, letterType, selectedEmployee, customFields, tenant, user, showMessage, t]);
 
-  const handleCopyToClipboard = () => {
+  const handleCopyToClipboard = useCallback(() => {
     navigator.clipboard.writeText(generatedLetter).then(() => {
       setCopied(true);
       showMessage(t('letters.copied'), 'success');
       setTimeout(() => setCopied(false), 3000);
     });
-  };
+  }, [generatedLetter, showMessage, t]);
 
-  const handleDownload = () => {
+  const handleDownload = useCallback(() => {
     const blob = new Blob([generatedLetter], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -264,10 +268,10 @@ ${companyInfo.name}`;
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showMessage('Letter downloaded successfully', 'success');
-  };
+    showMessage(t('letters.downloadSuccess'), 'success');
+  }, [generatedLetter, letterType, selectedEmployee, showMessage, t]);
 
-  const handlePrint = () => {
+  const handlePrint = useCallback(() => {
     const printWindow = window.open('', '_blank');
     printWindow.document.write(`
       <html>
@@ -285,15 +289,15 @@ ${companyInfo.name}`;
     `);
     printWindow.document.close();
     printWindow.print();
-  };
+  }, [generatedLetter, letterType, selectedEmployee]);
 
-  const handleInputChange = (e) => {
+  const handleInputChange = useCallback((e) => {
     const { name, value, type, checked } = e.target;
     setCustomFields(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
-  };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -302,7 +306,7 @@ ${companyInfo.name}`;
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Letter Configuration */}
         <div className="space-y-6">
-          <Card title="Letter Configuration">
+          <Card title={t('letters.letterConfiguration')}>
             <div className="space-y-4">
               <Select
                 label={t('letters.selectEmployee')}
@@ -322,22 +326,22 @@ ${companyInfo.name}`;
 
               {selectedEmployeeId && (
                 <div className="p-4 bg-blue-50 rounded-lg">
-                  <p className="text-sm font-medium text-blue-800 mb-2">Employee Details:</p>
+                  <p className="text-sm font-medium text-blue-800 mb-2">{t('letters.employeeDetails')}:</p>
                   <div className="text-sm text-blue-700 space-y-1">
-                    <p>• Name: {selectedEmployee?.firstName} {selectedEmployee?.lastName}</p>
-                    <p>• Position: {selectedEmployee?.role}</p>
-                    <p>• Department: {selectedEmployee?.department}</p>
-                    <p>• Hire Date: {selectedEmployee?.hireDate}</p>
+                    <p>• {t('common.name')}: {selectedEmployee?.firstName} {selectedEmployee?.lastName}</p>
+                    <p>• {t('employee.position')}: {selectedEmployee?.role}</p>
+                    <p>• {t('employee.department')}: {selectedEmployee?.department}</p>
+                    <p>• {t('employee.hireDate')}: {selectedEmployee?.hireDate ? new Date(selectedEmployee.hireDate).toLocaleDateString() : 'N/A'}</p>
                   </div>
                 </div>
               )}
             </div>
           </Card>
 
-          <Card title="Additional Options">
+          <Card title={t('letters.additionalOptions')}>
             <div className="space-y-4">
               <Input
-                label="Purpose (Optional)"
+                label={t('letters.purposeOptional')} /* Corrected JSX comment syntax */
                 name="purpose"
                 value={customFields.purpose}
                 onChange={handleInputChange}
@@ -345,7 +349,7 @@ ${companyInfo.name}`;
               />
 
               <Input
-                label="Addressed To (Optional)"
+                label={t('letters.addressedToOptional')}
                 name="addressedTo"
                 value={customFields.addressedTo}
                 onChange={handleInputChange}
@@ -354,7 +358,7 @@ ${companyInfo.name}`;
 
               {(letterType === 'promotion' || letterType === 'confirmation') && (
                 <Input
-                  label="Effective Date"
+                  label={t('letters.effectiveDate')}
                   name="effectiveDate"
                   type="date"
                   value={customFields.effectiveDate}
@@ -364,7 +368,7 @@ ${companyInfo.name}`;
 
               {(letterType === 'employment' || letterType === 'salary') && (
                 <div className="space-y-3">
-                  <label className="text-sm font-medium text-gray-700">Include:</label>
+                  <label className="text-sm font-medium text-gray-700">{t('letters.include')}:</label>
                   <div className="space-y-2">
                     <label className="flex items-center space-x-3">
                       <input
@@ -374,7 +378,7 @@ ${companyInfo.name}`;
                         onChange={handleInputChange}
                         className="w-4 h-4 text-blue-600 rounded"
                       />
-                      <span className="text-sm text-gray-700">Compensation Details</span>
+                      <span className="text-sm text-gray-700">{t('letters.compensationDetails')}</span>
                     </label>
                     <label className="flex items-center space-x-3">
                       <input
@@ -384,7 +388,7 @@ ${companyInfo.name}`;
                         onChange={handleInputChange}
                         className="w-4 h-4 text-blue-600 rounded"
                       />
-                      <span className="text-sm text-gray-700">Benefits Information</span>
+                      <span className="text-sm text-gray-700">{t('letters.benefitsInformation')}</span>
                     </label>
                     {letterType === 'employment' && (
                       <label className="flex items-center space-x-3">
@@ -395,7 +399,7 @@ ${companyInfo.name}`;
                           onChange={handleInputChange}
                           className="w-4 h-4 text-blue-600 rounded"
                         />
-                        <span className="text-sm text-gray-700">Job Description</span>
+                        <span className="text-sm text-gray-700">{t('letters.jobDescription')}</span>
                       </label>
                     )}
                   </div>
@@ -416,12 +420,12 @@ ${companyInfo.name}`;
 
         {/* Generated Letter */}
         <div className="space-y-4">
-          <Card title="Generated Letter" className="h-full">
+          <Card title={t('letters.generatedLetterTitle')} className="h-full">
             {generatedLetter ? (
               <>
                 <div className="mb-4 flex items-center justify-between">
                   <p className="text-sm text-gray-600">
-                    Letter ready for use
+                    {t('letters.letterReadyForUse')}
                   </p>
                   <div className="flex items-center space-x-2">
                     <Button
@@ -430,7 +434,7 @@ ${companyInfo.name}`;
                       size="small"
                     >
                       {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                      {copied ? 'Copied!' : t('letters.copy')}
+                      {copied ? t('letters.copied') : t('letters.copy')}
                     </Button>
                     <Button
                       onClick={handleDownload}
@@ -459,7 +463,7 @@ ${companyInfo.name}`;
               <div className="flex flex-col items-center justify-center h-64 text-gray-400">
                 <FileText className="w-16 h-16 mb-4" />
                 <p className="text-center">
-                  Select an employee and letter type to generate a letter
+                  {t('letters.selectToGenerate')}
                 </p>
               </div>
             )}
@@ -468,18 +472,18 @@ ${companyInfo.name}`;
       </div>
 
       {/* Letter Templates Info */}
-      <Card title="Available Letter Templates">
+      <Card title={t('letters.availableTemplatesTitle')}>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {letterTypes.map((type) => (
             <div key={type.value} className="p-4 border rounded-lg">
               <h4 className="font-semibold text-gray-800 mb-2">{type.label}</h4>
               <p className="text-sm text-gray-600">
-                {type.value === 'employment' && 'Confirms current employment status and details'}
-                {type.value === 'salary' && 'Provides salary and compensation information'}
-                {type.value === 'experience' && 'Certifies work experience and contributions'}
-                {type.value === 'promotion' && 'Official promotion announcement'}
-                {type.value === 'confirmation' && 'Confirms permanent employment status'}
-                {type.value === 'appreciation' && 'Recognizes exceptional performance'}
+                {type.value === 'employment' && t('letters.employmentDesc')}
+                {type.value === 'salary' && t('letters.salaryDesc')}
+                {type.value === 'experience' && t('letters.experienceDesc')}
+                {type.value === 'promotion' && t('letters.promotionDesc')}
+                {type.value === 'confirmation' && t('letters.confirmationDesc')}
+                {type.value === 'appreciation' && t('letters.appreciationDesc')}
               </p>
             </div>
           ))}

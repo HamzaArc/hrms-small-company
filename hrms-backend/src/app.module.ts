@@ -22,7 +22,8 @@ import { RecognitionModule } from './recognition/recognition.module';
 import { DocumentModule } from './document/document.module';
 import { User } from './user/user.entity';
 import { AuthModule } from './auth/auth.module';
-import { UserModule } from './user/user.module'; // <-- IMPORT THE NEW USER MODULE
+import { UserModule } from './user/user.module';
+import { OnboardingTaskModule } from './onboarding-task/onboarding-task.module'; // Add this import
 
 @Module({
   imports: [
@@ -42,7 +43,7 @@ import { UserModule } from './user/user.module'; // <-- IMPORT THE NEW USER MODU
       logging: ['query', 'error'],
     }),
     AuthModule,
-    UserModule, // <-- ADD THE USER MODULE HERE
+    UserModule,
     TenantModule,
     EmployeeModule,
     LeaveRequestModule,
@@ -52,6 +53,7 @@ import { UserModule } from './user/user.module'; // <-- IMPORT THE NEW USER MODU
     AnnouncementModule,
     RecognitionModule,
     DocumentModule,
+    OnboardingTaskModule, // Add OnboardingTaskModule here
   ],
   controllers: [],
   providers: [],

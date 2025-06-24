@@ -1,10 +1,9 @@
-
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useHRMS } from '../../contexts/HRMSContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { 
   FileText, Upload, Download, Edit3, Trash2, 
-  AlertCircle, Shield, Calendar, Filter, Search 
+  AlertCircle, Shield, Calendar, Filter, Search, CheckCircle // Added CheckCircle for e-sign button icon
 } from 'lucide-react';
 import Button from '../common/Button';
 import Input from '../common/Input';
@@ -14,30 +13,71 @@ import Card from '../common/Card';
 const DocumentManagement = () => {
   const { 
     employees, 
-    setEmployees,
     setCurrentPage,
-    showMessage 
+    showMessage,
+    fetchData, 
+    putData,   
+    deleteData,
+    setSelectedDocumentId // IMPORTANT: Ensure this is destructured here!
   } = useHRMS();
   const { t } = useLanguage();
 
+  const [documents, setDocuments] = useState([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Add this after the state declarations:
-   useEffect(() => {
-     if (employees.length > 0 && !selectedEmployeeId) {
-       setSelectedEmployeeId(employees[0].id);
-     }
-   }, [employees]);
+  const getDocumentStatus = useCallback((doc) => {
+    if (!doc.expiryDate) return doc.status || 'Active';
 
-  const employeeOptions = employees
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const expiryDate = new Date(doc.expiryDate);
+    expiryDate.setHours(0,0,0,0);
+    
+    const diffTime = expiryDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) return 'Expired';
+    if (diffDays <= 90) return 'Expiring Soon';
+    return doc.status || 'Active';
+  }, []);
+
+  useEffect(() => {
+    const loadDocuments = async () => {
+      setIsLoading(true);
+      const endpoint = selectedEmployeeId ? `/documents?employeeId=${selectedEmployeeId}` : '/documents';
+      const fetchedDocs = await fetchData(endpoint);
+      if (fetchedDocs) {
+        setDocuments(fetchedDocs);
+      } else {
+        setDocuments([]);
+      }
+      setIsLoading(false);
+    };
+
+    if (employees.length > 0 || selectedEmployeeId) {
+        loadDocuments();
+    } else {
+        setIsLoading(false);
+    }
+  }, [selectedEmployeeId, fetchData, employees.length]);
+
+  useEffect(() => {
+    if (employees.length > 0 && !selectedEmployeeId) {
+      setSelectedEmployeeId(employees[0].id);
+    }
+  }, [employees, selectedEmployeeId]);
+
+
+  const employeeOptions = useMemo(() => employees
     .filter(emp => emp.status === 'Active')
     .map(emp => ({
       value: emp.id,
       label: `${emp.firstName} ${emp.lastName}`
-    }));
+    })), [employees]);
 
   const documentTypes = [
     { value: 'Contract', label: 'Contract' },
@@ -53,34 +93,19 @@ const DocumentManagement = () => {
     { value: 'Pending', label: 'Pending Signature' }
   ];
 
-  // Get selected employee's documents
-  const selectedEmployee = employees.find(emp => emp.id === selectedEmployeeId);
-  const documents = selectedEmployee?.documents || [];
-
-  // Filter documents
   const filteredDocuments = useMemo(() => {
     return documents.filter(doc => {
       const matchesSearch = !searchTerm || 
         doc.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesType = !filterType || doc.type === filterType;
-      const matchesStatus = !filterStatus || doc.status === filterStatus;
+      
+      const displayStatus = getDocumentStatus(doc);
+      const matchesStatus = !filterStatus || displayStatus === filterStatus;
       
       return matchesSearch && matchesType && matchesStatus;
     });
-  }, [documents, searchTerm, filterType, filterStatus]);
+  }, [documents, searchTerm, filterType, filterStatus, getDocumentStatus]);
 
-  // Check document status
-  const getDocumentStatus = (doc) => {
-    if (!doc.expiryDate) return doc.status || 'Active';
-    
-    const today = new Date();
-    const expiryDate = new Date(doc.expiryDate);
-    const daysUntilExpiry = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
-    
-    if (daysUntilExpiry < 0) return 'Expired';
-    if (daysUntilExpiry <= 90) return 'Expiring Soon';
-    return doc.status || 'Active';
-  };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -97,49 +122,44 @@ const DocumentManagement = () => {
     }
   };
 
-  const handleDownload = (doc) => {
-    showMessage(`Downloaded: ${doc.name}`, 'success');
-  };
+  const handleDownload = useCallback((doc) => {
+    if (doc.fileUrl) {
+      window.open(doc.fileUrl, '_blank');
+      showMessage(t('documents.downloading'), 'success');
+    } else {
+      showMessage(t('documents.noFileUrl'), 'warning');
+    }
+  }, [showMessage, t]);
 
-  const handleESign = (docId) => {
-    if (!selectedEmployeeId) return;
+  const handleESign = useCallback(async (docId) => {
+    const payload = { status: 'Active', signedDate: new Date().toISOString().split('T')[0] };
+    const result = await putData(`/documents/${docId}`, payload, t('documents.signed'));
+    
+    if (result) {
+      const updatedDocuments = await fetchData(selectedEmployeeId ? `/documents?employeeId=${selectedEmployeeId}` : '/documents');
+      if (updatedDocuments) {
+        setDocuments(updatedDocuments);
+      }
+    }
+  }, [putData, fetchData, selectedEmployeeId, showMessage, t]);
 
-    setEmployees(prev => 
-      prev.map(emp => {
-        if (emp.id === selectedEmployeeId) {
-          return {
-            ...emp,
-            documents: emp.documents.map(doc => 
-              doc.id === docId 
-                ? { ...doc, status: 'Active', signedDate: new Date().toISOString().split('T')[0] }
-                : doc
-            )
-          };
-        }
-        return emp;
-      })
-    );
+  const handleEditDocument = useCallback((docId) => {
+    setSelectedDocumentId(docId); // Set the document ID to be edited in context
+    setCurrentPage('documentEdit'); // Navigate to the edit form page
+  }, [setSelectedDocumentId, setCurrentPage]);
 
-    showMessage(t('documents.signed'), 'success');
-  };
-
-  const handleDelete = (docId) => {
+  const handleDelete = useCallback(async (docId) => {
     showMessage('Are you sure you want to delete this document?', 'warning', [
       {
         label: t('common.yes'),
-        onClick: () => {
-          setEmployees(prev => 
-            prev.map(emp => {
-              if (emp.id === selectedEmployeeId) {
-                return {
-                  ...emp,
-                  documents: emp.documents.filter(doc => doc.id !== docId)
-                };
-              }
-              return emp;
-            })
-          );
-          showMessage('Document deleted successfully', 'success');
+        onClick: async () => {
+          const success = await deleteData('/documents', docId, 'Document deleted successfully');
+          if (success) {
+            const updatedDocuments = await fetchData(selectedEmployeeId ? `/documents?employeeId=${selectedEmployeeId}` : '/documents');
+            if (updatedDocuments) {
+              setDocuments(updatedDocuments);
+            }
+          }
         },
         primary: true
       },
@@ -148,33 +168,32 @@ const DocumentManagement = () => {
         onClick: () => {}
       }
     ]);
-  };
+  }, [deleteData, fetchData, selectedEmployeeId, showMessage, t]);
 
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setSearchTerm('');
     setFilterType('');
     setFilterStatus('');
-  };
+  }, []);
 
-  // Calculate statistics
   const stats = useMemo(() => {
-    if (!selectedEmployee) return null;
+    if (documents.length === 0) return null;
     
-    const docs = selectedEmployee.documents;
     const today = new Date();
-    
+    today.setHours(0,0,0,0);
+    const threeMonthsFromNow = new Date(today);
+    threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
+
     return {
-      total: docs.length,
-      active: docs.filter(d => getDocumentStatus(d) === 'Active').length,
-      expired: docs.filter(d => getDocumentStatus(d) === 'Expired').length,
-      expiringSoon: docs.filter(d => {
-        if (!d.expiryDate) return false;
-        const expiryDate = new Date(d.expiryDate);
-        const daysUntilExpiry = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
-        return daysUntilExpiry > 0 && daysUntilExpiry <= 90;
+      total: documents.length,
+      active: documents.filter(d => getDocumentStatus(d) === 'Active').length,
+      expired: documents.filter(d => getDocumentStatus(d) === 'Expired').length,
+      expiringSoon: documents.filter(d => {
+        const status = getDocumentStatus(d);
+        return status === 'Expiring Soon';
       }).length
     };
-  }, [selectedEmployee]);
+  }, [documents, getDocumentStatus]);
 
   return (
     <div className="space-y-6">
@@ -182,7 +201,7 @@ const DocumentManagement = () => {
         <h1 className="text-2xl font-bold text-gray-800">{t('documents.title')}</h1>
         {selectedEmployeeId && (
           <Button 
-            onClick={() => setCurrentPage('documentUpload')}
+            onClick={() => setCurrentPage('documentForm')}
             className="mt-4 sm:mt-0"
           >
             <Upload className="w-4 h-4 mr-2" />
@@ -202,7 +221,14 @@ const DocumentManagement = () => {
         />
       </Card>
 
-      {selectedEmployeeId && (
+      {/* Loading state or No Employee Selected */}
+      {isLoading ? (
+        <Card><p className="text-center">{t('common.loading')}</p></Card>
+      ) : !selectedEmployeeId && employees.length > 0 ? (
+        <Card><p className="text-center text-gray-500">Please select an employee to view their documents.</p></Card>
+      ) : selectedEmployeeId && documents.length === 0 && !isLoading ? (
+         <Card><p className="text-center text-gray-500">No documents found for this employee.</p></Card>
+      ) : selectedEmployeeId && (
         <>
           {/* Statistics */}
           {stats && (
@@ -323,7 +349,7 @@ const DocumentManagement = () => {
                   {filteredDocuments.length === 0 ? (
                     <tr>
                       <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
-                        No documents found
+                        No documents found matching filters.
                       </td>
                     </tr>
                   ) : (
@@ -361,25 +387,38 @@ const DocumentManagement = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex items-center space-x-2">
                               <button
+                                type="button"
                                 onClick={() => handleDownload(doc)}
                                 className="text-blue-600 hover:text-blue-900"
                                 title={t('documents.download')}
                               >
                                 <Download className="w-4 h-4" />
                               </button>
-                              {doc.status === 'Pending' && (
+                              {/* Edit Document Button */}
+                              <button
+                                type="button"
+                                onClick={() => handleEditDocument(doc.id)}
+                                className="text-purple-600 hover:text-purple-900"
+                                title={t('common.edit')}
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                              {/* E-Sign Button (only if pending) */}
+                              {doc.status === 'Pending' && ( 
                                 <button
+                                  type="button"
                                   onClick={() => handleESign(doc.id)}
                                   className="text-green-600 hover:text-green-900"
                                   title={t('documents.eSign')}
                                 >
-                                  <Edit3 className="w-4 h-4" />
+                                  <CheckCircle className="w-4 h-4" />
                                 </button>
                               )}
                               <button
+                                type="button"
                                 onClick={() => handleDelete(doc.id)}
                                 className="text-red-600 hover:text-red-900"
-                                title={t('documents.delete')}
+                                title={t('common.delete')}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>

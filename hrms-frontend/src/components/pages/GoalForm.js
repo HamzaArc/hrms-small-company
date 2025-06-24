@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react'; // Added useCallback
 import { useHRMS } from '../../contexts/HRMSContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Target, Plus, X, Calendar, User } from 'lucide-react';
@@ -11,10 +11,10 @@ import Card from '../common/Card';
 const GoalForm = () => {
   const { 
     employees, 
-    goals, 
-    setGoals, 
     setCurrentPage,
-    showMessage 
+    showMessage,
+    postData, // For sending new goal data to backend
+    fetchGoals // To re-fetch goals after creation
   } = useHRMS();
   const { t } = useLanguage();
 
@@ -29,13 +29,14 @@ const GoalForm = () => {
 
   const [keyResults, setKeyResults] = useState(['']);
   const [errors, setErrors] = useState({});
+  const [isLoading, setIsLoading] = useState(false); // New loading state
 
-  const activeEmployees = employees
+  const activeEmployees = useMemo(() => employees
     .filter(emp => emp.status === 'Active')
     .map(emp => ({
       value: emp.id,
       label: `${emp.firstName} ${emp.lastName}`
-    }));
+    })), [employees]);
 
   const categoryOptions = [
     { value: 'Performance', label: 'Performance' },
@@ -51,36 +52,36 @@ const GoalForm = () => {
     { value: 'Low', label: 'Low Priority' }
   ];
 
-  const handleInputChange = (e) => {
+  const handleInputChange = useCallback((e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => {
+      const newState = { ...prev, [name]: value };
+      return newState;
+    });
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
-  };
+  }, [errors]);
 
-  const handleKeyResultChange = (index, value) => {
+  const handleKeyResultChange = useCallback((index, value) => {
     setKeyResults(prev => 
       prev.map((kr, i) => i === index ? value : kr)
     );
-  };
+  }, []);
 
-  const addKeyResult = () => {
+  const addKeyResult = useCallback(() => {
     if (keyResults.length < 5) {
       setKeyResults(prev => [...prev, '']);
     } else {
       showMessage('Maximum 5 key results allowed', 'warning');
     }
-  };
+  }, [keyResults, showMessage]);
 
-  const removeKeyResult = (index) => {
+  const removeKeyResult = useCallback((index) => {
     setKeyResults(prev => prev.filter((_, i) => i !== index));
-  };
+  }, []);
 
-  const validateForm = () => {
+  const validateForm = useCallback(() => {
     const newErrors = {};
 
     if (!formData.employeeId) {
@@ -115,40 +116,43 @@ const GoalForm = () => {
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
+  }, [formData, keyResults]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
+    setIsLoading(true); // Set loading true
 
     if (!validateForm()) {
+      setIsLoading(false);
       return;
     }
 
-    const employee = employees.find(emp => emp.id === formData.employeeId);
     const validKeyResults = keyResults.filter(kr => kr.trim() !== '');
     
-    const newGoal = {
-      id: `goal-${Date.now()}`,
+    const payload = {
       employeeId: formData.employeeId,
-      employeeName: `${employee.firstName} ${employee.lastName}`,
       objective: formData.objective,
       description: formData.description,
       dueDate: formData.dueDate,
       category: formData.category,
       priority: formData.priority,
-      status: 'Not Started',
       keyResults: validKeyResults,
-      createdDate: new Date().toISOString().split('T')[0]
+      // status and createdDate will be set by the backend
     };
 
-    setGoals(prev => [...prev, newGoal]);
-    showMessage('Goal created successfully', 'success');
-    setCurrentPage('performance');
-  };
+    const result = await postData('/goals', payload, 'Goal created successfully!', 'Failed to create goal'); // Send to backend
+    
+    if (result) {
+      await fetchGoals(); // Re-fetch goals to update the PerformanceManagement list
+      setCurrentPage('performance'); // Navigate back
+    }
+    
+    setIsLoading(false); // Set loading false
+  }, [formData, keyResults, validateForm, postData, fetchGoals, setCurrentPage, showMessage]);
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     setCurrentPage('performance');
-  };
+  }, [setCurrentPage]);
 
   // Goal templates
   const goalTemplates = [
@@ -178,13 +182,13 @@ const GoalForm = () => {
     }
   ];
 
-  const applyTemplate = (template) => {
+  const applyTemplate = useCallback((template) => {
     setFormData(prev => ({
       ...prev,
       objective: template.title
     }));
     setKeyResults(template.keyResults);
-  };
+  }, []);
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -342,9 +346,9 @@ const GoalForm = () => {
           >
             {t('common.cancel')}
           </Button>
-          <Button type="submit">
+          <Button type="submit" disabled={isLoading}>
             <Target className="w-4 h-4 mr-2" />
-            Create Goal
+            {isLoading ? t('common.loading') : 'Create Goal'}
           </Button>
         </div>
       </form>

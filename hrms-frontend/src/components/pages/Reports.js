@@ -1,73 +1,170 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useHRMS } from '../../contexts/HRMSContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { 
-  BarChart3, PieChart, TrendingUp, Users, Calendar,
-  Clock, Target, FileText, Download, Filter, Award, 
-  Star, Megaphone
-} from 'lucide-react';
-import Button from '../common/Button';
-import Select from '../common/Select';
+  Users, Target, Award, FileText, Clock, TrendingUp, 
+  CheckCircle, AlertCircle, Calendar, BarChart2, Download, Filter, 
+  Megaphone, Star // Ensure all necessary Lucide icons are imported
+} from 'lucide-react'; 
+import Button from '../common/Button'; // Ensure Button is imported
 import Card from '../common/Card';
+import Select from '../common/Select'; 
+import Input from '../common/Input'; 
 
 const Reports = () => {
   const { 
-    employees, 
-    leaveRequests, 
-    timesheets, 
-    goals, 
-    reviews,
-    announcements,
-    recognitions,
-    showMessage 
+    // Data is now sourced from HRMSContext's global states directly
+    employees: globalEmployees, 
+    goals: globalGoals,
+    reviews: globalReviews,
+    documents: globalDocuments, 
+    timesheets: globalTimesheets, 
+    leaveRequests: globalLeaveRequests, 
+    announcements: globalAnnouncements, 
+    recognitions: globalRecognitions, 
+    onboardingTasks: globalOnboardingTasks, // FIX: Destructure globalOnboardingTasks
+    showMessage,
+    // We explicitly call fetch functions from HRMSContext here to ensure data is loaded for reports.
+    fetchEmployees, 
+    fetchGoals,
+    fetchReviews,
+    fetchDocuments,
+    fetchTimesheets,
+    fetchLeaveRequests,
+    fetchAnnouncements,
+    fetchRecognitions,
+    fetchOnboardingTasks // FIX: Destructure fetchOnboardingTasks
   } = useHRMS();
   const { t } = useLanguage();
 
+  // Local states to mirror global data, ensuring useMemo dependencies are met
+  const [employees, setEmployees] = useState([]);
+  const [goals, setGoals] = useState([]);
+  const [reviews, setReviews] = useState([]);
+  const [documents, setDocuments] = useState([]);
+  const [timesheets, setTimesheets] = useState([]);
+  const [leaveRequests, setLeaveRequests] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
+  const [recognitions, setRecognitions] = useState([]);
+  const [onboardingTasks, setOnboardingTasks] = useState([]); // FIX: Local state for onboarding tasks
+  const [isLoading, setIsLoading] = useState(true);
+
+  // States for report controls
   const [selectedReport, setSelectedReport] = useState('overview');
-  const [dateRange, setDateRange] = useState('month');
+  const [dateRange, setDateRange] = useState('month'); 
 
-  const reportTypes = [
-    { value: 'overview', label: 'Overview Dashboard' },
-    { value: 'employees', label: 'Employee Analytics' },
-    { value: 'leave', label: 'Leave Analysis' },
-    { value: 'timesheet', label: 'Timesheet Report' },
-    { value: 'performance', label: 'Performance Metrics' },
-    { value: 'engagement', label: 'Engagement Report' }
-  ];
+  // Report type options
+  const reportTypes = useMemo(() => [
+    { value: 'overview', label: t('reports.overview') },
+    { value: 'employees', label: t('reports.employeeAnalytics') },
+    { value: 'leave', label: t('reports.leaveAnalysis') },
+    { value: 'timesheet', label: t('reports.timesheetReport') },
+    { value: 'performance', label: t('reports.performanceMetrics') },
+    { value: 'engagement', label: t('reports.engagementReport') }
+  ], [t]);
 
-  const dateRangeOptions = [
-    { value: 'week', label: 'Last 7 Days' },
-    { value: 'month', label: 'Last 30 Days' },
-    { value: 'quarter', label: 'Last Quarter' },
-    { value: 'year', label: 'Last Year' }
-  ];
+  // Date range options (can be expanded later for dynamic ranges)
+  const dateRangeOptions = useMemo(() => [
+    { value: 'week', label: t('reports.last7Days') },
+    { value: 'month', label: t('reports.last30Days') },
+    { value: 'quarter', label: t('reports.lastQuarter') },
+    { value: 'year', label: t('reports.lastYear') }
+  ], [t]);
 
-  // Calculate various metrics
+
+  // Fetch all necessary data when component mounts.
+  // We use the specific fetch functions from HRMSContext to ensure they update the global state.
+  useEffect(() => {
+    const loadAllDataForReports = async () => {
+      setIsLoading(true);
+      // Execute all fetch operations concurrently
+      await Promise.all([
+        fetchEmployees(),
+        fetchGoals(),
+        fetchReviews(),
+        fetchDocuments(),
+        fetchTimesheets(),
+        fetchLeaveRequests(),
+        fetchAnnouncements(),
+        fetchRecognitions(),
+        fetchOnboardingTasks() // FIX: Fetch onboarding tasks here
+      ]);
+      setIsLoading(false);
+    };
+    loadAllDataForReports();
+  }, [
+    fetchEmployees, fetchGoals, fetchReviews, fetchDocuments, 
+    fetchTimesheets, fetchLeaveRequests, fetchAnnouncements, fetchRecognitions,
+    fetchOnboardingTasks // FIX: Added to dependencies
+  ]);
+
+  // Sync local states with global states (HRMSContext)
+  // This ensures that when the global states update (e.g., after a form submission on another page),
+  // the reports page's local data (and thus metrics) also update.
+  useEffect(() => {
+    if (globalEmployees) setEmployees(globalEmployees);
+    if (globalGoals) setGoals(globalGoals);
+    if (globalReviews) setReviews(globalReviews);
+    if (globalDocuments) setDocuments(globalDocuments);
+    if (globalTimesheets) setTimesheets(globalTimesheets);
+    if (globalLeaveRequests) setLeaveRequests(globalLeaveRequests);
+    if (globalAnnouncements) setAnnouncements(globalAnnouncements);
+    if (globalRecognitions) setRecognitions(globalRecognitions);
+    if (globalOnboardingTasks) setOnboardingTasks(globalOnboardingTasks); // FIX: Sync onboarding tasks
+  }, [
+    globalEmployees, globalGoals, globalReviews, globalDocuments, globalTimesheets, 
+    globalLeaveRequests, globalAnnouncements, globalRecognitions, globalOnboardingTasks
+  ]);
+
+
+  // Helper to get document status for overdue/expiring calculations
+  const getDocumentStatus = useCallback((doc) => {
+    if (!doc.expiryDate) return doc.status || 'Active';
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const expiryDate = new Date(doc.expiryDate);
+    expiryDate.setHours(0,0,0,0);
+    const diffTime = expiryDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays < 0) return 'Expired';
+    if (diffDays <= 90) return 'Expiring Soon';
+    return doc.status || 'Active';
+  }, []); 
+
+  // Calculate various statistics using memoization for performance
   const metrics = useMemo(() => {
     const now = new Date();
     const activeEmployees = employees.filter(emp => emp.status === 'Active');
     
     // Employee metrics
     const departmentCounts = {};
-    activeEmployees.forEach(emp => {
+    employees.forEach(emp => { 
       departmentCounts[emp.department] = (departmentCounts[emp.department] || 0) + 1;
     });
 
     // Leave metrics
     const leavesByType = {};
     const leavesByStatus = {};
-    leaveRequests.forEach(leave => {
-      leavesByType[leave.type] = (leavesByType[leave.type] || 0) + 1;
-      leavesByStatus[leave.status] = (leavesByStatus[leave.status] || 0) + 1;
+    let totalLeaveRequests = 0;
+    let pendingLeaveRequests = 0;
+
+    leaveRequests.forEach(leave => { 
+        totalLeaveRequests++;
+        leavesByType[leave.type] = (leavesByType[leave.type] || 0) + 1;
+        leavesByStatus[leave.status] = (leavesByStatus[leave.status] || 0) + 1;
+        if (leave.status === 'Pending') {
+            pendingLeaveRequests++;
+        }
     });
 
-    // Timesheet metrics
-    const totalHours = timesheets.reduce((sum, ts) => sum + ts.hours, 0);
-    const avgHoursPerEntry = timesheets.length > 0 ? (totalHours / timesheets.length).toFixed(1) : 0;
+    const totalHoursLogged = timesheets.reduce((sum, ts) => sum + (parseFloat(ts.hours) || 0), 0); 
+    const avgHoursPerEntry = timesheets.length > 0 ? (totalHoursLogged / timesheets.length).toFixed(1) : 0;
     
     const hoursByEmployee = {};
     timesheets.forEach(ts => {
-      hoursByEmployee[ts.employeeName] = (hoursByEmployee[ts.employeeName] || 0) + ts.hours;
+      const employee = employees.find(emp => emp.id === ts.employeeId);
+      const employeeName = employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown';
+      hoursByEmployee[employeeName] = (hoursByEmployee[employeeName] || 0) + (parseFloat(ts.hours) || 0);
     });
 
     // Performance metrics
@@ -77,40 +174,36 @@ const Reports = () => {
     });
 
     const avgRating = reviews.length > 0
-      ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
-      : 0;
+      ? (reviews.reduce((sum, r) => sum + (parseFloat(r.rating) || 0), 0) / reviews.length).toFixed(1)
+      : 'N/A'; 
+
+    const overdueGoals = goals.filter(goal => {
+        const dueDate = new Date(goal.dueDate);
+        return dueDate < new Date() && goal.status !== 'Completed';
+    }).length;
 
     // Document expiry
-    const expiringDocuments = [];
-    const threeMonthsFromNow = new Date(now);
-    threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
-
-    employees.forEach(emp => {
-      if (emp.documents) {
-        emp.documents.forEach(doc => {
-          if (doc.expiryDate) {
-            const expiryDate = new Date(doc.expiryDate);
-            if (expiryDate > now && expiryDate < threeMonthsFromNow) {
-              expiringDocuments.push({
-                employee: `${emp.firstName} ${emp.lastName}`,
-                document: doc.name,
-                expiryDate: doc.expiryDate
-              });
-            }
-          }
-        });
-      }
-    });
+    const overdueDocuments = documents.filter(doc => getDocumentStatus(doc) === 'Expired').length;
+    const expiringSoonDocumentsList = documents.filter(doc => getDocumentStatus(doc) === 'Expiring Soon'); 
+    const totalDocuments = documents.length;
 
     // Onboarding metrics
-    let totalOnboardingTasks = 0;
-    let completedOnboardingTasks = 0;
-    employees.forEach(emp => {
-      if (emp.onboardingTasks) {
-        totalOnboardingTasks += emp.onboardingTasks.length;
-        completedOnboardingTasks += emp.onboardingTasks.filter(t => t.completed).length;
-      }
-    });
+    const totalOnboardingTasks = onboardingTasks.length; // Use local onboardingTasks state
+    const completedOnboardingTasks = onboardingTasks.filter(t => t.completed).length;
+    const onboardingCompletionRate = totalOnboardingTasks > 0
+      ? ((completedOnboardingTasks / totalOnboardingTasks) * 100).toFixed(1)
+      : 'N/A';
+    
+    // Engagement metrics
+    const announcementsThisMonth = announcements.filter(a => {
+      const date = new Date(a.publishDate); 
+      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    }).length;
+
+    const recognitionsThisMonth = recognitions.filter(r => {
+      const date = new Date(r.date);
+      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    }).length;
 
     return {
       employees: {
@@ -121,23 +214,24 @@ const Reports = () => {
         newHires: employees.filter(emp => {
           const hireDate = new Date(emp.hireDate);
           const monthsAgo = new Date(now);
-          monthsAgo.setMonth(monthsAgo.getMonth() - 1);
+          monthsAgo.setMonth(monthsAgo.getMonth() - 1); 
           return hireDate > monthsAgo;
         }).length
       },
       leave: {
-        total: leaveRequests.length,
+        total: totalLeaveRequests,
         byType: leavesByType,
         byStatus: leavesByStatus,
-        pending: leavesByStatus['Pending'] || 0,
-        utilization: activeEmployees.reduce((sum, emp) => {
-          const totalDays = emp.leaveBalances.vacation + emp.leaveBalances.sick + emp.leaveBalances.personal;
-          const usedDays = 30 - totalDays; // Assuming 30 days total
-          return sum + (usedDays / 30 * 100);
-        }, 0) / activeEmployees.length
+        pending: pendingLeaveRequests,
+        utilization: (employees.length > 0 && leaveRequests.length > 0) ? // Ensure there are employees and leave requests
+            ((leaveRequests.filter(lr => lr.status === 'Approved').reduce((sum, lr) => {
+                const start = new Date(lr.startDate);
+                const end = new Date(lr.endDate);
+                return sum + ((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24) + 1);
+            }, 0)) / (employees.length * 20)) * 100 || 0 : 0 // Assuming 20 working days/month average per employee
       },
       timesheet: {
-        totalHours,
+        totalHours: totalHoursLogged,
         avgHoursPerEntry,
         hoursByEmployee,
         entriesCount: timesheets.length
@@ -147,49 +241,44 @@ const Reports = () => {
         goalsByStatus,
         avgRating,
         reviewsCount: reviews.length,
-        completionRate: goals.length > 0 
+        completionRate: (goals.length > 0)
           ? ((goalsByStatus['Completed'] || 0) / goals.length * 100).toFixed(1)
-          : 0
+          : 'N/A', // Set to N/A if no goals
+        overdueGoals: overdueGoals
       },
       documents: {
-        expiring: expiringDocuments
+        total: totalDocuments,
+        overdue: overdueDocuments,
+        expiringSoon: expiringSoonDocumentsList.length,
+        expiringList: expiringSoonDocumentsList 
       },
-      onboarding: {
-        totalTasks: totalOnboardingTasks,
+      onboarding: { 
+        totalTasks: totalOnboardingTasks, 
         completedTasks: completedOnboardingTasks,
-        completionRate: totalOnboardingTasks > 0
-          ? ((completedOnboardingTasks / totalOnboardingTasks) * 100).toFixed(1)
-          : 0
+        completionRate: onboardingCompletionRate 
       },
       engagement: {
         announcements: announcements.length,
         recognitions: recognitions.length,
         thisMonth: {
-          announcements: announcements.filter(a => {
-            const date = new Date(a.date);
-            return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-          }).length,
-          recognitions: recognitions.filter(r => {
-            const date = new Date(r.date);
-            return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-          }).length
+          announcements: announcementsThisMonth,
+          recognitions: recognitionsThisMonth
         }
       }
     };
-  }, [employees, leaveRequests, timesheets, goals, reviews, announcements, recognitions]);
+  }, [employees, goals, reviews, documents, timesheets, leaveRequests, announcements, recognitions, onboardingTasks, getDocumentStatus]); // Added onboardingTasks to deps
 
-  const handleExportReport = () => {
-    // Simulate export functionality
-    showMessage('Report exported successfully', 'success');
-  };
 
-  // Chart components (visual representation)
-  const BarChart = ({ data, title }) => {
-    const maxValue = Math.max(...Object.values(data));
+  // Chart components (visual representation) - these just display data
+  const BarChart = ({ data }) => { 
+    // Handle case where data might be empty or non-numeric
+    const values = Object.values(data).filter(val => typeof val === 'number');
+    const maxValue = values.length > 0 ? Math.max(...values) : 1; 
+    
+    if (Object.keys(data).length === 0) return <p className="text-center text-gray-500">{t('reports.noDataForChart')}</p>; // New translation key
     
     return (
       <div className="space-y-3">
-        <h4 className="text-sm font-medium text-gray-700">{title}</h4>
         {Object.entries(data).map(([label, value]) => (
           <div key={label} className="space-y-1">
             <div className="flex items-center justify-between text-sm">
@@ -208,13 +297,14 @@ const Reports = () => {
     );
   };
 
-  const PieChartSimple = ({ data, title }) => {
-    const total = Object.values(data).reduce((sum, val) => sum + val, 0);
-    const colors = ['bg-blue-500', 'bg-green-500', 'bg-yellow-500', 'bg-red-500', 'bg-purple-500'];
+  const PieChartSimple = ({ data }) => {
+    const total = Object.values(data).reduce((sum, val) => sum + (typeof val === 'number' ? val : 0), 0);
+    const colors = ['bg-blue-500', 'bg-green-500', 'bg-yellow-500', 'bg-red-500', 'bg-purple-500', 'bg-indigo-500', 'bg-pink-500'];
     
+    if (total === 0) return <p className="text-center text-gray-500">{t('reports.noDataForChart')}</p>; // New translation key
+
     return (
       <div className="space-y-3">
-        <h4 className="text-sm font-medium text-gray-700">{title}</h4>
         <div className="space-y-2">
           {Object.entries(data).map(([label, value], index) => (
             <div key={label} className="flex items-center justify-between">
@@ -223,7 +313,7 @@ const Reports = () => {
                 <span className="text-sm text-gray-600">{label}</span>
               </div>
               <span className="text-sm font-medium">
-                {value} ({((value / total) * 100).toFixed(1)}%)
+                {value} ({total > 0 ? ((value / total) * 100).toFixed(1) : 0}%)
               </span>
             </div>
           ))}
@@ -232,19 +322,27 @@ const Reports = () => {
     );
   };
 
-  const renderReport = () => {
+
+  const renderReportContent = () => {
+    if (isLoading) {
+        return <Card><p className="text-center">{t('common.loading')}</p></Card>;
+    }
+    
+    const metricsData = metrics;
+
     switch (selectedReport) {
       case 'overview':
         return (
           <div className="space-y-6">
-            {/* Key Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">{t('reports.totalEmployees')}</p>
-                    <p className="text-2xl font-bold text-gray-800">{metrics.employees.total}</p>
-                    <p className="text-xs text-green-600">+{metrics.employees.newHires} this month</p>
+                    <p className="text-2xl font-bold text-gray-800">{metricsData.employees.total}</p>
+                    <p className="text-xs text-green-600">
+                        {t('reports.newHires', { count: metricsData.employees.newHires })}
+                    </p>
                   </div>
                   <Users className="w-8 h-8 text-blue-500" />
                 </div>
@@ -253,9 +351,9 @@ const Reports = () => {
               <Card>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Pending Leaves</p>
-                    <p className="text-2xl font-bold text-gray-800">{metrics.leave.pending}</p>
-                    <p className="text-xs text-gray-600">Requires attention</p>
+                    <p className="text-sm text-gray-600">{t('reports.pendingApproval')}</p>
+                    <p className="text-2xl font-bold text-gray-800">{metricsData.leave.pending}</p>
+                    <p className="text-xs text-gray-600">{t('reports.requiresAttention')}</p>
                   </div>
                   <Calendar className="w-8 h-8 text-yellow-500" />
                 </div>
@@ -264,9 +362,9 @@ const Reports = () => {
               <Card>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">{t('reports.totalHours')}</p>
-                    <p className="text-2xl font-bold text-gray-800">{metrics.timesheet.totalHours}</p>
-                    <p className="text-xs text-gray-600">Avg: {metrics.timesheet.avgHoursPerEntry}h/entry</p>
+                    <p className="text-sm text-gray-600">{t('reports.totalHoursLogged')}</p>
+                    <p className="text-2xl font-bold text-gray-800">{metricsData.timesheet.totalHours.toFixed(1)}</p>
+                    <p className="text-xs text-gray-600">{t('reports.avgHoursPerEntry', { avg: metricsData.timesheet.avgHoursPerEntry })}</p>
                   </div>
                   <Clock className="w-8 h-8 text-green-500" />
                 </div>
@@ -275,9 +373,9 @@ const Reports = () => {
               <Card>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Avg Performance</p>
-                    <p className="text-2xl font-bold text-gray-800">{metrics.performance.avgRating}/5</p>
-                    <p className="text-xs text-gray-600">{metrics.performance.reviewsCount} reviews</p>
+                    <p className="text-sm text-gray-600">{t('reports.avgRating')}</p>
+                    <p className="text-2xl font-bold text-gray-800">{metricsData.performance.avgRating}/5</p>
+                    <p className="text-xs text-gray-600">{t('reports.reviews', { count: metricsData.performance.reviewsCount })}</p>
                   </div>
                   <Award className="w-8 h-8 text-purple-500" />
                 </div>
@@ -286,58 +384,63 @@ const Reports = () => {
 
             {/* Charts */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card title="Department Distribution">
-                <BarChart data={metrics.employees.byDepartment} />
+              <Card title={t('reports.departmentDistribution')}>
+                <BarChart data={metricsData.employees.byDepartment} />
               </Card>
               
-              <Card title="Leave Requests by Type">
-                <PieChartSimple data={metrics.leave.byType} />
+              <Card title={t('reports.goalsByStatus')}>
+                <PieChartSimple data={metricsData.performance.goalsByStatus} />
               </Card>
               
-              <Card title="Goal Status Distribution">
-                <PieChartSimple data={metrics.performance.goalsByStatus} />
-              </Card>
-              
-              <Card title="Onboarding Progress">
+              <Card title={t('reports.onboardingProgress')}>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Completion Rate</span>
-                    <span className="text-lg font-bold">{metrics.onboarding.completionRate}%</span>
+                    <span className="text-sm text-gray-600">{t('reports.completionRate')}</span>
+                    <span className="text-lg font-bold">
+                        {metricsData.onboarding.totalTasks !== 'N/A' ? `${metricsData.onboarding.completionRate}%` : t('common.na')}
+                    </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-3">
                     <div 
                       className="bg-green-600 h-3 rounded-full transition-all duration-300"
-                      style={{ width: `${metrics.onboarding.completionRate}%` }}
+                      style={{ width: `${metricsData.onboarding.completionRate || 0}%` }}
                     />
                   </div>
                   <div className="flex justify-between text-sm text-gray-600">
-                    <span>{metrics.onboarding.completedTasks} completed</span>
-                    <span>{metrics.onboarding.totalTasks} total tasks</span>
+                    <span>{metricsData.onboarding.completedTasks} {t('common.completed')}</span>
+                    <span>{metricsData.onboarding.totalTasks} {t('reports.totalTasks')}</span>
                   </div>
                 </div>
               </Card>
-            </div>
-
-            {/* Document Expiry Alert */}
-            {metrics.documents.expiring.length > 0 && (
-              <Card title={t('reports.documentExpiry')} className="border-yellow-200 bg-yellow-50">
-                <div className="space-y-2">
-                  {metrics.documents.expiring.slice(0, 5).map((doc, index) => (
-                    <div key={index} className="flex items-center justify-between text-sm">
-                      <span className="text-gray-700">{doc.employee} - {doc.document}</span>
-                      <span className="text-yellow-700 font-medium">
-                        Expires: {new Date(doc.expiryDate).toLocaleDateString()}
-                      </span>
+              
+              <Card title={t('reports.documentExpiry')}>
+                {metricsData.documents.overdue > 0 || metricsData.documents.expiringList.length > 0 ? (
+                    <div className="space-y-2">
+                      {metricsData.documents.overdue > 0 && (
+                          <div className="flex items-center justify-between text-sm text-red-700 font-medium">
+                              <span>{metricsData.documents.overdue} {t('reports.overdueDocs')}</span>
+                              <AlertCircle className="w-4 h-4 text-red-700" />
+                          </div>
+                      )}
+                      {metricsData.documents.expiringList.slice(0, 5).map((doc, index) => (
+                        <div key={doc.id || index} className="flex items-center justify-between text-sm">
+                          <span className="text-gray-700">{doc.employee?.firstName} {doc.employee?.lastName} - {doc.name}</span>
+                          <span className="text-yellow-700 font-medium">
+                            {t('reports.expires')}: {new Date(doc.expiryDate).toLocaleDateString()}
+                          </span>
+                        </div>
+                      ))}
+                      {(metricsData.documents.overdue + metricsData.documents.expiringList.length) > 5 && (
+                        <p className="text-sm text-yellow-700 font-medium mt-2">
+                          +{metricsData.documents.overdue + metricsData.documents.expiringList.length - 5} {t('reports.moreDocsExpiring')}
+                        </p>
+                      )}
                     </div>
-                  ))}
-                  {metrics.documents.expiring.length > 5 && (
-                    <p className="text-sm text-yellow-700 font-medium">
-                      +{metrics.documents.expiring.length - 5} more documents expiring soon
-                    </p>
-                  )}
-                </div>
-              </Card>
-            )}
+                ) : (
+                    <p className="text-center text-gray-700 py-4">{t('reports.noExpiringDocs')}</p>
+                )}
+            </Card>
+            </div>
           </div>
         );
 
@@ -347,44 +450,43 @@ const Reports = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Card>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-gray-800">{metrics.employees.active}</p>
-                  <p className="text-sm text-gray-600">Active Employees</p>
+                  <p className="text-3xl font-bold text-gray-800">{metricsData.employees.total}</p>
+                  <p className="text-sm text-gray-600">{t('reports.totalEmployees')}</p>
                 </div>
               </Card>
               <Card>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-gray-800">{metrics.employees.inactive}</p>
-                  <p className="text-sm text-gray-600">Inactive Employees</p>
+                  <p className="text-3xl font-bold text-gray-800">{metricsData.employees.active}</p>
+                  <p className="text-sm text-gray-600">{t('common.active')}</p>
                 </div>
               </Card>
               <Card>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-gray-800">{metrics.employees.newHires}</p>
-                  <p className="text-sm text-gray-600">New Hires (30 days)</p>
+                  <p className="text-3xl font-bold text-gray-800">{metricsData.employees.newHires}</p>
+                  <p className="text-sm text-gray-600">{t('reports.newHires', { count: metricsData.employees.newHires })}</p>
                 </div>
               </Card>
             </div>
 
-            <Card title="Employees by Department">
-              <BarChart data={metrics.employees.byDepartment} />
+            <Card title={t('reports.employeesByDepartment')}>
+              <BarChart data={metricsData.employees.byDepartment} />
             </Card>
 
-            <Card title="Employee Status Overview">
+            <Card title={t('reports.employeeStatusOverview')}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <PieChartSimple 
                   data={{ 
-                    Active: metrics.employees.active, 
-                    Inactive: metrics.employees.inactive 
+                    [t('common.active')]: metricsData.employees.active, 
+                    [t('common.inactive')]: metricsData.employees.inactive 
                   }} 
-                  title="Status Distribution"
                 />
                 <div className="space-y-3">
-                  <h4 className="text-sm font-medium text-gray-700">Department Details</h4>
+                  <h4 className="text-sm font-medium text-gray-700">{t('reports.departmentDetails')}</h4>
                   <div className="space-y-2">
-                    {Object.entries(metrics.employees.byDepartment).map(([dept, count]) => (
+                    {Object.entries(metricsData.employees.byDepartment).map(([dept, count]) => (
                       <div key={dept} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                         <span className="text-sm text-gray-700">{dept}</span>
-                        <span className="text-sm font-medium">{count} employees</span>
+                        <span className="text-sm font-medium">{t('reports.employees', { count })}</span>
                       </div>
                     ))}
                   </div>
@@ -400,58 +502,58 @@ const Reports = () => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-gray-800">{metrics.leave.total}</p>
-                  <p className="text-sm text-gray-600">Total Requests</p>
+                  <p className="text-3xl font-bold text-gray-800">{metricsData.leave.total}</p>
+                  <p className="text-sm text-gray-600">{t('reports.totalRequests')}</p>
                 </div>
               </Card>
               <Card>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-yellow-600">{metrics.leave.pending}</p>
-                  <p className="text-sm text-gray-600">Pending Approval</p>
+                  <p className="text-3xl font-bold text-yellow-600">{metricsData.leave.pending}</p>
+                  <p className="text-sm text-gray-600">{t('reports.pendingApproval')}</p>
                 </div>
               </Card>
               <Card>
                 <div className="text-center">
                   <p className="text-3xl font-bold text-green-600">
-                    {metrics.leave.byStatus['Approved'] || 0}
+                    {metricsData.leave.byStatus['Approved'] || 0}
                   </p>
-                  <p className="text-sm text-gray-600">Approved</p>
+                  <p className="text-sm text-gray-600">{t('leave.approved')}</p>
                 </div>
               </Card>
               <Card>
                 <div className="text-center">
                   <p className="text-3xl font-bold text-red-600">
-                    {metrics.leave.byStatus['Rejected'] || 0}
+                    {metricsData.leave.byStatus['Rejected'] || 0}
                   </p>
-                  <p className="text-sm text-gray-600">Rejected</p>
+                  <p className="text-sm text-gray-600">{t('leave.rejected')}</p>
                 </div>
               </Card>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card title="Leave Types Distribution">
-                <PieChartSimple data={metrics.leave.byType} />
+              <Card title={t('reports.leaveTypesDistribution')}>
+                <PieChartSimple data={metricsData.leave.byType} />
               </Card>
               
-              <Card title="Leave Status Overview">
-                <BarChart data={metrics.leave.byStatus} />
+              <Card title={t('reports.leaveStatusOverview')}>
+                <BarChart data={metricsData.leave.byStatus} />
               </Card>
             </div>
 
-            <Card title="Leave Utilization">
+            <Card title={t('reports.leaveUtilization')}>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Average Utilization</span>
-                  <span className="text-lg font-bold">{metrics.leave.utilization.toFixed(1)}%</span>
+                  <span className="text-sm text-gray-600">{t('reports.averageUtilization')}</span>
+                  <span className="text-lg font-bold">{metricsData.leave.utilization.toFixed(1)}%</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-3">
                   <div 
                     className="bg-blue-600 h-3 rounded-full transition-all duration-300"
-                    style={{ width: `${metrics.leave.utilization}%` }}
+                    style={{ width: `${metricsData.leave.utilization}%` }}
                   />
                 </div>
                 <p className="text-xs text-gray-500">
-                  Based on leave balances across all active employees
+                  {t('reports.leaveUtilizationDesc')}
                 </p>
               </div>
             </Card>
@@ -464,40 +566,38 @@ const Reports = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Card>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-gray-800">{metrics.timesheet.totalHours}</p>
-                  <p className="text-sm text-gray-600">Total Hours Logged</p>
+                  <p className="text-3xl font-bold text-gray-800">{metricsData.timesheet.totalHours.toFixed(1)}</p>
+                  <p className="text-sm text-gray-600">{t('reports.totalHoursLogged')}</p>
                 </div>
               </Card>
               <Card>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-gray-800">{metrics.timesheet.entriesCount}</p>
-                  <p className="text-sm text-gray-600">Total Entries</p>
+                  <p className="text-3xl font-bold text-gray-800">{metricsData.timesheet.entriesCount}</p>
+                  <p className="text-sm text-gray-600">{t('reports.totalEntries')}</p>
                 </div>
               </Card>
               <Card>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-gray-800">{metrics.timesheet.avgHoursPerEntry}</p>
-                  <p className="text-sm text-gray-600">Avg Hours/Entry</p>
+                  <p className="text-3xl font-bold text-gray-800">{metricsData.timesheet.avgHoursPerEntry}</p>
+                  <p className="text-sm text-gray-600">{t('reports.avgHoursPerEntry')}</p>
                 </div>
               </Card>
             </div>
 
-            <Card title="Hours by Employee">
-              <BarChart data={metrics.timesheet.hoursByEmployee} />
+            <Card title={t('reports.hoursByEmployee')}>
+              <BarChart data={metricsData.timesheet.hoursByEmployee} />
             </Card>
 
-            <Card title="Top Contributors">
+            <Card title={t('reports.topContributors')}>
               <div className="space-y-2">
-                {Object.entries(metrics.timesheet.hoursByEmployee)
+                {Object.entries(metricsData.timesheet.hoursByEmployee)
                   .sort(([,a], [,b]) => b - a)
                   .slice(0, 5)
                   .map(([name, hours], index) => (
-                    <div key={name} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                      <div className="flex items-center space-x-3">
-                        <span className="text-lg font-bold text-gray-400">#{index + 1}</span>
-                        <span className="text-sm font-medium text-gray-700">{name}</span>
-                      </div>
-                      <span className="text-sm font-bold text-gray-800">{hours} hours</span>
+                    <div key={name} className="flex items-center space-x-3">
+                      <span className="text-lg font-bold text-gray-400">#{index + 1}</span>
+                      <span className="text-sm font-medium text-gray-700">{name}</span>
+                      <span className="text-sm font-bold text-gray-800">{hours.toFixed(1)} {t('reports.hours')}</span>
                     </div>
                   ))}
               </div>
@@ -511,79 +611,98 @@ const Reports = () => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-gray-800">{metrics.performance.totalGoals}</p>
+                  <p className="text-3xl font-bold text-gray-800">{metricsData.performance.totalGoals}</p>
                   <p className="text-sm text-gray-600">{t('reports.totalGoals')}</p>
                 </div>
               </Card>
               <Card>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-gray-800">{metrics.performance.completionRate}%</p>
-                  <p className="text-sm text-gray-600">Completion Rate</p>
+                  <p className="text-3xl font-bold text-gray-800">{metricsData.performance.completionRate}%</p>
+                  <p className="text-sm text-gray-600">{t('reports.completionRate')}</p>
                 </div>
               </Card>
               <Card>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-gray-800">{metrics.performance.avgRating}</p>
-                  <p className="text-sm text-gray-600">Avg Rating</p>
+                  <p className="text-3xl font-bold text-gray-800">{metricsData.performance.avgRating}</p>
+                  <p className="text-sm text-gray-600">{t('reports.avgRating')}</p>
                 </div>
               </Card>
               <Card>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-gray-800">{metrics.performance.reviewsCount}</p>
+                  <p className="text-3xl font-bold text-gray-800">{metricsData.performance.reviewsCount}</p>
                   <p className="text-sm text-gray-600">{t('reports.reviewsConducted')}</p>
                 </div>
               </Card>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card title="Goals by Status">
-                <PieChartSimple data={metrics.performance.goalsByStatus} />
+              <Card title={t('reports.goalsByStatus')}>
+                <PieChartSimple data={metricsData.performance.goalsByStatus} />
               </Card>
               
-              <Card title="Performance Overview">
+              <Card title={t('reports.performanceOverview')}>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between p-3 bg-green-50 rounded">
                     <span className="text-sm text-gray-700">{t('reports.goalsCompleted')}</span>
                     <span className="text-lg font-bold text-green-600">
-                      {metrics.performance.goalsByStatus['Completed'] || 0}
+                      {metricsData.performance.goalsByStatus['Completed'] || 0}
                     </span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-blue-50 rounded">
                     <span className="text-sm text-gray-700">{t('reports.goalsInProgress')}</span>
                     <span className="text-lg font-bold text-blue-600">
-                      {metrics.performance.goalsByStatus['In Progress'] || 0}
+                      {metricsData.performance.goalsByStatus['In Progress'] || 0}
                     </span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-yellow-50 rounded">
-                    <span className="text-sm text-gray-700">Not Started</span>
+                    <span className="text-sm text-gray-700">{t('common.notStarted')}</span>
                     <span className="text-lg font-bold text-yellow-600">
-                      {metrics.performance.goalsByStatus['Not Started'] || 0}
+                      {metricsData.performance.goalsByStatus['Not Started'] || 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-red-50 rounded">
+                    <span className="text-sm text-gray-700">{t('common.overdue')}</span>
+                    <span className="text-lg font-bold text-red-600">
+                      {metricsData.performance.overdueGoals}
                     </span>
                   </div>
                 </div>
               </Card>
             </div>
 
-            <Card title="Rating Distribution">
-              <div className="space-y-4">
-                <div className="flex items-center justify-center">
-                  <div className="text-center">
-                    <p className="text-5xl font-bold text-yellow-500">{metrics.performance.avgRating}</p>
-                    <div className="flex items-center justify-center mt-2">
-                      {[...Array(5)].map((_, i) => (
-                        <Star 
-                          key={i} 
-                          className={`w-6 h-6 ${
-                            i < Math.floor(metrics.performance.avgRating) 
-                              ? 'text-yellow-400 fill-current' 
-                              : 'text-gray-300'
-                          }`} 
-                        />
-                      ))}
-                    </div>
-                    <p className="text-sm text-gray-600 mt-2">Average Performance Rating</p>
-                  </div>
+            <Card title={t('reports.ratingDistribution')}>
+              <div className="text-center py-8">
+                <div className="relative inline-flex items-center justify-center">
+                  <svg className="w-32 h-32">
+                    <circle
+                      className="text-gray-200"
+                      strokeWidth="10"
+                      stroke="currentColor"
+                      fill="transparent"
+                      r="56"
+                      cx="64"
+                      cy="64"
+                    />
+                    <circle
+                      className="text-yellow-500"
+                      strokeWidth="10"
+                      strokeDasharray={351.86}
+                      strokeDashoffset={351.86 * (1 - (parseFloat(metricsData.performance.avgRating) / 5))}
+                      strokeLinecap="round"
+                      stroke="currentColor"
+                      fill="transparent"
+                      r="56"
+                      cx="64"
+                      cy="64"
+                      transform="rotate(-90 64 64)"
+                    />
+                  </svg>
+                  <span className="absolute text-3xl font-bold">{metricsData.performance.avgRating}</span>
                 </div>
+                <p className="text-sm text-gray-600 mt-4">{t('reports.overallPerformanceRating')}</p>
+                <p className="text-xs text-gray-500 mt-2">
+                  {t('reports.ratingBasedOnReviews', { count: metricsData.performance.reviewsCount })}
+                </p>
               </div>
             </Card>
           </div>
@@ -595,62 +714,62 @@ const Reports = () => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-gray-800">{metrics.engagement.announcements}</p>
-                  <p className="text-sm text-gray-600">Total Announcements</p>
+                  <p className="text-3xl font-bold text-gray-800">{metricsData.engagement.announcements}</p>
+                  <p className="text-sm text-gray-600">{t('engagement.totalAnnouncements')}</p>
                 </div>
               </Card>
               <Card>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-gray-800">{metrics.engagement.recognitions}</p>
-                  <p className="text-sm text-gray-600">Total Recognitions</p>
-                </div>
-              </Card>
-              <Card>
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-gray-800">
-                    {metrics.engagement.thisMonth.announcements}
-                  </p>
-                  <p className="text-sm text-gray-600">Announcements This Month</p>
+                  <p className="text-3xl font-bold text-gray-800">{metricsData.engagement.recognitions}</p>
+                  <p className="text-sm text-gray-600">{t('engagement.totalRecognitions')}</p>
                 </div>
               </Card>
               <Card>
                 <div className="text-center">
                   <p className="text-3xl font-bold text-gray-800">
-                    {metrics.engagement.thisMonth.recognitions}
+                    {metricsData.engagement.thisMonth.announcements}
                   </p>
-                  <p className="text-sm text-gray-600">Recognitions This Month</p>
+                  <p className="text-sm text-gray-600">{t('reports.announcementsThisMonth')}</p>
+                </div>
+              </Card>
+              <Card>
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-gray-800">
+                    {metricsData.engagement.thisMonth.recognitions}
+                  </p>
+                  <p className="text-sm text-gray-600">{t('reports.recognitionsThisMonth')}</p>
                 </div>
               </Card>
             </div>
 
-            <Card title="Engagement Trends">
+            <Card title={t('reports.engagementTrends')}>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Monthly Activity</span>
+                  <span className="text-sm text-gray-600">{t('reports.monthlyActivity')}</span>
                   <span className="text-lg font-bold">
-                    {metrics.engagement.thisMonth.announcements + metrics.engagement.thisMonth.recognitions} items
+                    {((metricsData.engagement.thisMonth.announcements || 0) + (metricsData.engagement.thisMonth.recognitions || 0))} {t('reports.items')}
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-4 bg-blue-50 rounded-lg text-center">
                     <Megaphone className="w-8 h-8 text-blue-600 mx-auto mb-2" />
                     <p className="text-2xl font-bold text-blue-800">
-                      {metrics.engagement.thisMonth.announcements}
+                      {metricsData.engagement.thisMonth.announcements}
                     </p>
-                    <p className="text-sm text-blue-600">Announcements</p>
+                    <p className="text-sm text-blue-600">{t('engagement.announcements')}</p>
                   </div>
                   <div className="p-4 bg-yellow-50 rounded-lg text-center">
                     <Award className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
                     <p className="text-2xl font-bold text-yellow-800">
-                      {metrics.engagement.thisMonth.recognitions}
+                      {metricsData.engagement.thisMonth.recognitions}
                     </p>
-                    <p className="text-sm text-yellow-600">Recognitions</p>
+                    <p className="text-sm text-yellow-600">{t('engagement.recognitions')}</p>
                   </div>
                 </div>
               </div>
             </Card>
 
-            <Card title="Engagement Score">
+            <Card title={t('reports.engagementScore')}>
               <div className="text-center py-8">
                 <div className="relative inline-flex items-center justify-center">
                   <svg className="w-32 h-32">
@@ -679,9 +798,9 @@ const Reports = () => {
                   </svg>
                   <span className="absolute text-3xl font-bold">75%</span>
                 </div>
-                <p className="text-sm text-gray-600 mt-4">Overall Engagement Score</p>
+                <p className="text-sm text-gray-600 mt-4">{t('reports.overallEngagementScore')}</p>
                 <p className="text-xs text-gray-500 mt-2">
-                  Based on announcements, recognitions, and participation
+                  {t('reports.engagementScoreDesc')}
                 </p>
               </div>
             </Card>
@@ -699,7 +818,7 @@ const Reports = () => {
         <h1 className="text-2xl font-bold text-gray-800">{t('reports.title')}</h1>
         <Button onClick={handleExportReport} className="mt-4 sm:mt-0">
           <Download className="w-4 h-4 mr-2" />
-          Export Report
+          {t('reports.exportReports')}
         </Button>
       </div>
 
@@ -708,13 +827,14 @@ const Reports = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
           <div className="flex items-center space-x-4">
             <Select
+              label={t('reports.selectReport')}
               value={selectedReport}
               onChange={(e) => setSelectedReport(e.target.value)}
               options={reportTypes}
               className="w-48 min-w-[200px]" 
-
             />
             <Select
+              label={t('reports.selectDateRange')}
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value)}
               options={dateRangeOptions}
@@ -724,14 +844,14 @@ const Reports = () => {
           <div className="flex items-center space-x-2">
             <Button variant="outline" size="small">
               <Filter className="w-4 h-4 mr-2" />
-              More Filters
+              {t('reports.moreFilters')}
             </Button>
           </div>
         </div>
       </Card>
 
       {/* Report Content */}
-      {renderReport()}
+      {renderReportContent()}
     </div>
   );
 };
