@@ -1,3 +1,4 @@
+// hrms-frontend/src/contexts/HRMSContext.js
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import api from '../api';
 
@@ -12,7 +13,7 @@ export const HRMSProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(!!accessToken);
   const [currentPage, setCurrentPage] = useState('login');
   const [messageBox, setMessageBox] = useState({ message: '', type: 'info', actions: [], onClose: () => {} });
-  
+
   // All global data states
   const [employees, setEmployees] = useState([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
@@ -61,7 +62,7 @@ export const HRMSProvider = ({ children }) => {
       setCurrentPage('login');
     }
   }, [accessToken, logout]);
-  
+
   const login = useCallback(async (email, password) => {
     try {
       const response = await api.post('/auth/login', { email, password });
@@ -96,7 +97,7 @@ export const HRMSProvider = ({ children }) => {
       return null;
     }
   }, [handleApiError]);
-  
+
   const postData = useCallback(async (endpoint, data, successMessage, errorMessage) => {
     try {
       const res = await api.post(endpoint, data);
@@ -121,7 +122,7 @@ export const HRMSProvider = ({ children }) => {
 
   const deleteData = useCallback(async (endpoint, id, successMessage, errorMessage) => {
     try {
-      await api.delete(`${endpoint}/${id}`);
+      await api.delete(`<span class="math-inline">\{endpoint\}/</span>{id}`);
       if(successMessage) showMessage(successMessage, 'success');
       return true;
     } catch (err) {
@@ -178,7 +179,7 @@ export const HRMSProvider = ({ children }) => {
     fetchData, postData, putData, deleteData,
     // Specific fetchers (used by individual pages to refresh their data)
     fetchEmployees, fetchLeaveRequests, fetchTimesheets, fetchGoals, fetchReviews, 
-    fetchAnnouncements, fetchRecognitions, fetchOnboardingTasks // FIX: Expose onboarding tasks fetcher
+    fetchAnnouncements, fetchRecognitions, fetchOnboardingTasks 
   }), [
     user, tenant, isLoading, currentPage, accessToken, messageBox,
     employees, selectedEmployeeId, selectedDocumentId,
@@ -187,7 +188,8 @@ export const HRMSProvider = ({ children }) => {
     login, logout, setupTenantAndAdmin, showMessage,
     fetchData, postData, putData, deleteData,
     fetchEmployees, fetchLeaveRequests, fetchTimesheets, fetchGoals, fetchReviews,
-    fetchAnnouncements, fetchRecognitions, fetchOnboardingTasks // All fetchers
+    fetchAnnouncements, fetchRecognitions, fetchOnboardingTasks,
+    // Removed setTenant from dependencies because useState dispatch functions are stable
   ]);
 
   return (

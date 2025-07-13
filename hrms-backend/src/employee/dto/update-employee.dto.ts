@@ -1,4 +1,5 @@
-import { IsString, IsEmail, IsOptional, IsIn, IsNumber, Min } from 'class-validator';
+// hrms-backend/src/employee/dto/update-employee.dto.ts
+import { IsString, IsEmail, IsOptional, IsIn, IsNumber, Min, IsUUID, IsObject } from 'class-validator';
 
 export class UpdateEmployeeDto {
   @IsString()
@@ -34,19 +35,27 @@ export class UpdateEmployeeDto {
   @IsIn(['Active', 'Inactive'])
   status?: string;
 
-  // --- FIX: Add leave balance properties to allow them to be updated ---
-  @IsNumber()
-  @IsOptional()
-  @Min(0)
-  vacationBalance?: number;
+  // REMOVED: Fixed leave balance properties
+  // @IsNumber()
+  // @IsOptional()
+  // @Min(0)
+  // vacationBalance?: number;
 
-  @IsNumber()
-  @IsOptional()
-  @Min(0)
-  sickBalance?: number;
+  // @IsNumber()
+  // @IsOptional()
+  // @Min(0)
+  // sickBalance?: number;
 
-  @IsNumber()
+  // @IsNumber()
+  // @IsOptional()
+  // @Min(0)
+  // personalBalance?: number;
+
+  @IsUUID()
   @IsOptional()
-  @Min(0)
-  personalBalance?: number;
+  leavePolicyId?: string; // NEW: Allow updating leave policy by ID
+
+  @IsObject()
+  @IsOptional()
+  leaveBalances?: { [key: string]: number }; // NEW: Allow updating dynamic leave balances
 }

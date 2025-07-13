@@ -1,6 +1,7 @@
+// hrms-backend/src/employee/dto/create-employee.dto.ts
 import { IsString, IsEmail, IsNotEmpty, IsOptional, IsIn, IsDateString, IsNumber, Min } from 'class-validator';
 
-export class CreateEmployeeDto {
+export class CreateEmployeeDto { // FIX: Ensure 'export class' is present
   @IsString()
   @IsNotEmpty()
   firstName: string;
@@ -37,20 +38,4 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsIn(['Active', 'Inactive'])
   status?: string;
-  
-  // FIX: Add optional leave balance properties for creation
-  @IsNumber()
-  @IsOptional()
-  @Min(0)
-  vacationBalance?: number;
-
-  @IsNumber()
-  @IsOptional()
-  @Min(0)
-  sickBalance?: number;
-
-  @IsNumber()
-  @IsOptional()
-  @Min(0)
-  personalBalance?: number;
 }

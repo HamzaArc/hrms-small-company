@@ -1,3 +1,4 @@
+// hrms-backend/src/app.module.ts
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
@@ -23,7 +24,12 @@ import { DocumentModule } from './document/document.module';
 import { User } from './user/user.entity';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
-import { OnboardingTaskModule } from './onboarding-task/onboarding-task.module'; // Add this import
+import { OnboardingTaskModule } from './onboarding-task/onboarding-task.module';
+import { Holiday } from './holiday/holiday.entity';
+import { HolidayModule } from './holiday/holiday.module';
+import { LeavePolicy } from './leave-policy/leave-policy.entity';
+import { LeavePolicyModule } from './leave-policy/leave-policy.module';
+import { EmailModule } from './email/email.module'; // FIX: Ensure EmailModule is imported
 
 @Module({
   imports: [
@@ -38,7 +44,7 @@ import { OnboardingTaskModule } from './onboarding-task/onboarding-task.module';
       username: process.env.DB_USERNAME as string,
       password: process.env.DB_PASSWORD as string,
       database: process.env.DB_DATABASE as string,
-      entities: [Tenant, Employee, OnboardingTask, Document, LeaveRequest, Timesheet, Goal, Review, Announcement, Recognition, User],
+      entities: [Tenant, Employee, OnboardingTask, Document, LeaveRequest, Timesheet, Goal, Review, Announcement, Recognition, User, Holiday, LeavePolicy],
       synchronize: true,
       logging: ['query', 'error'],
     }),
@@ -53,7 +59,10 @@ import { OnboardingTaskModule } from './onboarding-task/onboarding-task.module';
     AnnouncementModule,
     RecognitionModule,
     DocumentModule,
-    OnboardingTaskModule, // Add OnboardingTaskModule here
+    OnboardingTaskModule,
+    EmailModule, // FIX: Ensure EmailModule is correctly listed here
+    HolidayModule,
+    LeavePolicyModule,
   ],
   controllers: [],
   providers: [],

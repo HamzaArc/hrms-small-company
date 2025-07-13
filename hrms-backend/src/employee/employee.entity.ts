@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn, CreateDateColumn, UpdateDateColumn, OneToOne } from 'typeorm'; // Add OneToOne here
+// hrms-backend/src/employee/employee.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn, CreateDateColumn, UpdateDateColumn, OneToOne } from 'typeorm';
 import { Tenant } from '../tenant/tenant.entity';
 import { OnboardingTask } from '../onboarding-task/onboarding-task.entity';
 import { Document } from '../document/document.entity';
@@ -7,7 +8,8 @@ import { Timesheet } from '../timesheet/timesheet.entity';
 import { Goal } from '../goal/goal.entity';
 import { Review } from '../review/review.entity';
 import { Recognition } from '../recognition/recognition.entity';
-import { User } from '../user/user.entity'; // Import User entity
+import { User } from '../user/user.entity';
+import { LeavePolicy } from '../leave-policy/leave-policy.entity'; // NEW: Import LeavePolicy entity
 
 @Entity('employees')
 export class Employee {
@@ -48,14 +50,23 @@ export class Employee {
   @Column({ default: 'Active' })
   status: string;
 
-  @Column({ default: 15 })
-  vacationBalance: number;
+  // REMOVED: Fixed leave balances. Will be dynamic based on policies.
+  // @Column({ default: 15 })
+  // vacationBalance: number;
+  // @Column({ default: 10 })
+  // sickBalance: number;
+  // @Column({ default: 5 })
+  // personalBalance: number;
 
-  @Column({ default: 10 })
-  sickBalance: number;
+  @Column({ type: 'uuid', nullable: true }) // NEW: Foreign key to LeavePolicy
+  leavePolicyId: string;
 
-  @Column({ default: 5 })
-  personalBalance: number;
+  @ManyToOne(() => LeavePolicy, leavePolicy => leavePolicy.employees, { onDelete: 'SET NULL', nullable: true }) // NEW: Many-to-one relationship with LeavePolicy
+  @JoinColumn({ name: 'leavePolicyId' })
+  leavePolicy: LeavePolicy;
+
+  @Column({ type: 'jsonb', nullable: true, default: {} }) // NEW: Dynamic leave balances based on policy types
+  leaveBalances: { [key: string]: number }; // e.g., { "Annual Leave": 10, "Sick Leave": 5 }
 
   @OneToMany(() => OnboardingTask, onboardingTask => onboardingTask.employee)
   onboardingTasks: OnboardingTask[];
@@ -78,7 +89,7 @@ export class Employee {
   @OneToMany(() => Recognition, recognition => recognition.recipient)
   recognitions: Recognition[];
 
-  @OneToOne(() => User, user => user.employee, { nullable: true }) // Set nullable to true as an employee might not have a user account
+  @OneToOne(() => User, user => user.employee, { nullable: true })
   user: User;
 
   @CreateDateColumn()

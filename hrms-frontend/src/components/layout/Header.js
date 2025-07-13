@@ -23,7 +23,7 @@ const Header = ({ toggleSidebar, logout }) => {
     setNotifications([]);
     setShowNotifications(false);
   };
-  
+
   const handleMyProfile = () => {
     if (user) {
       setCurrentPage('myProfile');
@@ -32,7 +32,8 @@ const Header = ({ toggleSidebar, logout }) => {
 
   const languageOptions = [
     { value: 'en', label: 'English' },
-    { value: 'fr', label: 'Français' }
+    { value: 'fr', label: 'Français' },
+    { value: 'ar', label: 'العربية' } // NEW: Add Arabic option
   ];
 
   return (
@@ -92,7 +93,7 @@ const Header = ({ toggleSidebar, logout }) => {
                       </Button>
                     )}
                   </div>
-                  
+
                   {notifications.length === 0 ? (
                     <p className="text-gray-500 text-sm">{t('header.noNotifications')}</p>
                   ) : (

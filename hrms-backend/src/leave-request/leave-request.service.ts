@@ -1,3 +1,4 @@
+// hrms-backend/src/leave-request/leave-request.service.ts
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, In } from 'typeorm';
@@ -5,6 +6,7 @@ import { LeaveRequest } from './leave-request.entity';
 import { EmployeeService } from '../employee/employee.service';
 import { Employee } from '../employee/employee.entity';
 import { CreateLeaveRequestDto } from './dto/create-leave-request.dto';
+import { HolidayService } from '../holiday/holiday.service';
 
 @Injectable()
 export class LeaveRequestService {
@@ -12,6 +14,7 @@ export class LeaveRequestService {
     @InjectRepository(LeaveRequest)
     private leaveRequestsRepository: Repository<LeaveRequest>,
     private employeeService: EmployeeService,
+    private holidayService: HolidayService,
   ) {}
 
   private normalizeDate(date: Date): Date {
@@ -20,41 +23,59 @@ export class LeaveRequestService {
     return newDate;
   }
 
-  private calculateDays(startDate: Date, endDate: Date): number {
+  private async calculateWorkingDays(startDate: Date, endDate: Date, tenantId: string): Promise<number> {
     const start = this.normalizeDate(startDate);
     const end = this.normalizeDate(endDate);
-    const diffTime = end.getTime() - start.getTime();
-    // Add 1 to make the range inclusive
-    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
-    return diffDays;
+
+    console.log(`[LeaveCalc] Calculating working days from ${start.toISOString()} to ${end.toISOString()}`);
+    
+    const publicHolidays = await this.holidayService.findAll(tenantId, start, end);
+    const holidayDates = new Set(publicHolidays.map(h => this.normalizeDate(h.date).getTime()));
+    console.log(`[LeaveCalc] Fetched public holidays (${publicHolidays.length}):`, publicHolidays.map(h => h.date));
+    console.log(`[LeaveCalc] Normalized holiday timestamps:`, Array.from(holidayDates));
+
+    let workingDays = 0;
+    let currentDate = new Date(start);
+
+    while (currentDate <= end) {
+      const dayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+      const currentDayTimestamp = currentDate.getTime();
+
+      console.log(`[LeaveCalc] Checking date: ${currentDate.toISOString().split('T')[0]} (DayOfWeek: ${dayOfWeek})`);
+
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Exclude Saturday (6) and Sunday (0)
+        console.log(`[LeaveCalc]   - Not a weekend.`);
+        if (!holidayDates.has(currentDayTimestamp)) {
+          workingDays++;
+          console.log(`[LeaveCalc]   - Not a holiday. Incrementing workingDays. Current: ${workingDays}`);
+        } else {
+          console.log(`[LeaveCalc]   - Is a holiday. Skipping.`);
+        }
+      } else {
+        console.log(`[LeaveCalc]   - Is a weekend. Skipping.`);
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    console.log(`[LeaveCalc] Final calculated working days: ${workingDays}`);
+    return workingDays;
   }
 
-  private getLeaveBalance(employee: Employee, leaveType: string): number {
-    const lowerCaseType = leaveType.toLowerCase();
-    switch (lowerCaseType) {
-      case 'vacation': return employee.vacationBalance;
-      case 'sick': return employee.sickBalance;
-      case 'personal': return employee.personalBalance;
-      default:
-        throw new BadRequestException(`Invalid leave type provided: ${leaveType}.`);
-    }
+  public async getWorkingDaysBetweenDates(startDate: Date, endDate: Date, tenantId: string): Promise<number> {
+    return this.calculateWorkingDays(startDate, endDate, tenantId);
   }
 
-  private setLeaveBalance(employee: Employee, leaveType: string, newBalance: number): void {
-    const lowerCaseType = leaveType.toLowerCase();
-    switch (lowerCaseType) {
-      case 'vacation': employee.vacationBalance = newBalance; break;
-      case 'sick': employee.sickBalance = newBalance; break;
-      case 'personal': employee.personalBalance = newBalance; break;
-      default:
-        throw new BadRequestException(`Invalid leave type for setting balance: ${leaveType}.`);
-    }
+  // MODIFIED: Use employee.leaveBalances (JSONB)
+  private getLeaveBalance(employee: Employee, leaveTypeName: string): number {
+    return employee.leaveBalances[leaveTypeName] || 0; // Access by dynamic type name
+  }
+
+  // MODIFIED: Set employee.leaveBalances (JSONB)
+  private setLeaveBalance(employee: Employee, leaveTypeName: string, newBalance: number): void {
+    employee.leaveBalances[leaveTypeName] = newBalance; // Update dynamic type balance
   }
 
   async create(createLeaveRequestDto: CreateLeaveRequestDto, tenantId: string): Promise<LeaveRequest> {
     const { employeeId, type, startDate: startDateString, endDate: endDateString, reason } = createLeaveRequestDto;
-
-    console.log(`--- [LeaveRequestService] Attempting to create leave request for employeeId: ${employeeId} in tenantId: ${tenantId}`);
 
     const startDate = this.normalizeDate(new Date(startDateString));
     const endDate = this.normalizeDate(new Date(endDateString));
@@ -70,9 +91,15 @@ export class LeaveRequestService {
         throw new BadRequestException('Start date cannot be in the past.');
     }
     
-    console.log(`--- [LeaveRequestService] Calling EmployeeService.findOne with employeeId: ${employeeId} and tenantId: ${tenantId}`);
-    const employee = await this.employeeService.findOne(employeeId, tenantId);
-    console.log(`--- [LeaveRequestService] Employee found successfully.`);
+    const employee = await this.employeeService.findOne(employeeId, tenantId); // Loads employee with leavePolicy
+    if (!employee.leavePolicy) {
+        throw new BadRequestException('Employee is not assigned a leave policy.');
+    }
+
+    // Validate leave type against assigned policy's name
+    if (employee.leavePolicy.name !== type) {
+        throw new BadRequestException(`Leave type "${type}" is not allowed for employee's assigned policy: "${employee.leavePolicy.name}".`);
+    }
 
     const existingRequests = await this.leaveRequestsRepository.find({
         where: {
@@ -92,15 +119,20 @@ export class LeaveRequestService {
         throw new BadRequestException('The requested dates overlap with an existing leave request.');
     }
 
-    const requestedDays = this.calculateDays(startDate, endDate);
-    if (requestedDays <= 0) {
-        throw new BadRequestException('Leave request must be for at least one day.');
+    const requestedWorkingDays = await this.getWorkingDaysBetweenDates(startDate, endDate, tenantId);
+    if (requestedWorkingDays <= 0) {
+        throw new BadRequestException('Leave request must be for at least one working day.');
     }
 
-    const currentBalance = this.getLeaveBalance(employee, type);
+    const currentBalance = this.getLeaveBalance(employee, type); // Use type from form as leave policy name
 
-    if (currentBalance < requestedDays) {
-        throw new BadRequestException(`Insufficient ${type} leave days available. Available: ${currentBalance}, Requested: ${requestedDays}.`);
+    if (currentBalance < requestedWorkingDays) {
+        throw new BadRequestException(`Insufficient ${type} leave days available. Available: ${currentBalance}, Requested: ${requestedWorkingDays}.`);
+    }
+
+    // Check against maxPerRequest if defined in policy
+    if (employee.leavePolicy.maxPerRequest && requestedWorkingDays > employee.leavePolicy.maxPerRequest) {
+        throw new BadRequestException(`Requested leave (${requestedWorkingDays} days) exceeds maximum allowed per request (${employee.leavePolicy.maxPerRequest} days) for ${type} leave.`);
     }
 
     const newRequestData = {
@@ -119,17 +151,19 @@ export class LeaveRequestService {
       whereClause.employeeId = employeeId;
     }
 
+    // NEW: Load employee with its leavePolicy to get leave type names
     return this.leaveRequestsRepository.find({
       where: whereClause,
-      relations: ['employee'],
+      relations: ['employee', 'employee.leavePolicy'], // Load employee.leavePolicy
       order: { requestedDate: 'DESC' },
     });
   }
 
   async findOne(id: string, tenantId: string): Promise<LeaveRequest> {
+    // NEW: Load employee with its leavePolicy to get leave type names
     const request = await this.leaveRequestsRepository.findOne({
       where: { id, tenantId },
-      relations: ['employee'],
+      relations: ['employee', 'employee.leavePolicy'], // Load employee.leavePolicy
     });
     if (!request) {
       throw new NotFoundException(`Leave request with ID "${id}" not found for this tenant.`);
@@ -138,9 +172,10 @@ export class LeaveRequestService {
   }
 
   async updateStatus(id: string, tenantId: string, newStatus: 'Approved' | 'Rejected'): Promise<LeaveRequest> {
+    // NEW: Load employee with its leavePolicy
     const request = await this.leaveRequestsRepository.findOne({
       where: { id, tenantId },
-      relations: ['employee'],
+      relations: ['employee', 'employee.leavePolicy'], // Load employee.leavePolicy
     });
 
     if (!request) {
@@ -149,24 +184,25 @@ export class LeaveRequestService {
     if (request.status !== 'Pending') {
         throw new BadRequestException(`Leave request is already ${request.status}. Cannot change status.`);
     }
+    if (!request.employee.leavePolicy) {
+        throw new BadRequestException('Employee is not assigned a leave policy. Cannot process leave approval.');
+    }
 
     if (newStatus === 'Approved') {
-      const requestedDays = this.calculateDays(request.startDate, request.endDate);
-      const leaveType = request.type as string;
+      const requestedWorkingDays = await this.getWorkingDaysBetweenDates(request.startDate, request.endDate, tenantId);
+      const leaveType = request.type; // Use type from request, which must match policy name
 
       const employee = request.employee;
       const currentBalance = this.getLeaveBalance(employee, leaveType);
 
-      if (currentBalance < requestedDays) {
-        throw new BadRequestException(`Insufficient ${request.type} leave days for approval. Employee: ${employee.firstName} ${employee.lastName}. Available: ${currentBalance}, Requested: ${requestedDays}.`);
+      if (currentBalance < requestedWorkingDays) {
+        throw new BadRequestException(`Insufficient ${leaveType} leave days for approval. Employee: ${employee.firstName} ${employee.lastName}. Available: ${currentBalance}, Requested: ${requestedWorkingDays}.`);
       }
-      
-      this.setLeaveBalance(employee, leaveType, currentBalance - requestedDays);
-      
+
+      this.setLeaveBalance(employee, leaveType, currentBalance - requestedWorkingDays);
+
       await this.employeeService.update(employee.id, {
-          vacationBalance: employee.vacationBalance,
-          sickBalance: employee.sickBalance,
-          personalBalance: employee.personalBalance,
+          leaveBalances: employee.leaveBalances, // Pass the updated JSONB object
       }, tenantId); 
     }
 

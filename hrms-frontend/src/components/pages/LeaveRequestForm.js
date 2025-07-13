@@ -1,4 +1,6 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+// hrms-frontend/src/components/pages/LeaveRequestForm.js
+// Existing imports...
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useHRMS } from '../../contexts/HRMSContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import Button from '../common/Button';
@@ -6,84 +8,127 @@ import Input from '../common/Input';
 import Select from '../common/Select';
 import TextArea from '../common/TextArea';
 import Card from '../common/Card';
+import { Send, Calendar as CalendarIcon } from 'lucide-react'; // Renamed Calendar to CalendarIcon to avoid conflict
 
 const LeaveRequestForm = () => {
-  const { user, employees, postData, setCurrentPage, fetchLeaveRequests, showMessage } = useHRMS();
+  const { user, employees, postData, setCurrentPage, fetchLeaveRequests, showMessage, fetchData } = useHRMS();
   const { t } = useLanguage();
   
   const [formData, setFormData] = useState({
-    employeeId: '',
-    type: 'Vacation',
+    employeeId: user?.role === 'employee' && user?.employeeId ? user.employeeId : '',
+    type: 'Vacation', // Initial type, will be dynamically populated from policies
     startDate: '',
     endDate: '',
     reason: '',
   });
-  const [isLoading, setIsLoading] = useState(false);
-  const [requestedDays, setRequestedDays] = useState(0); // New state for calculated days
-  const [currentBalance, setCurrentBalance] = useState(0); // New state for current balance
-  const [projectedBalance, setProjectedBalance] = useState(0); // New state for projected balance
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [calculatedWorkingDays, setCalculatedWorkingDays] = useState(0);
+  const [calculationLoading, setCalculationLoading] = useState(false);
+  const [currentLeaveBalance, setCurrentLeaveBalance] = useState(0);
+  const [projectedBalance, setProjectedBalance] = useState(0);
+  const [holidaysInRange, setHolidaysInRange] = useState([]); // State to store holidays in the selected range
+  const [leavePolicies, setLeavePolicies] = useState([]); // NEW: State to store available leave policies
 
   const userIsAdmin = useMemo(() => user?.role === 'admin', [user]);
 
-  // Define activeEmployees here using useMemo
-  const activeEmployees = useMemo(() => employees
+  const employeeOptions = useMemo(() => employees
     .filter(emp => emp.status === 'Active')
     .map(emp => ({
       value: emp.id,
       label: `${emp.firstName} ${emp.lastName}`
     })), [employees]);
 
-  // Find the selected employee object
   const selectedEmployee = useMemo(() => {
     return employees.find(emp => emp.id === formData.employeeId);
   }, [employees, formData.employeeId]);
 
+  // NEW: Fetch leave policies
+  useEffect(() => {
+    const loadLeavePolicies = async () => {
+      const fetchedPolicies = await fetchData('/leave-policies');
+      if (fetchedPolicies) {
+        setLeavePolicies(fetchedPolicies);
+        // Set a default leave type if none selected and policies exist
+        if (fetchedPolicies.length > 0 && !formData.type) {
+            setFormData(prev => ({ ...prev, type: fetchedPolicies[0].name }));
+        }
+      }
+    };
+    loadLeavePolicies();
+  }, [fetchData]); // Only fetch once or when fetchData changes
+
+  // Update employeeId default and initial balances
   useEffect(() => {
     if (!userIsAdmin && user?.employeeId) {
       setFormData(prev => ({ ...prev, employeeId: user.employeeId }));
+    } else if (userIsAdmin && employeeOptions.length > 0 && !formData.employeeId) {
+      setFormData(prev => ({ ...prev, employeeId: employeeOptions[0].value }));
     }
-    else if (userIsAdmin && activeEmployees.length > 0 && !formData.employeeId) { // activeEmployees used here
-        setFormData(prev => ({ ...prev, employeeId: activeEmployees[0].value }));
+    // Update initial balance when employee or policies change
+    if (selectedEmployee && leavePolicies.length > 0) {
+      setCurrentLeaveBalance(selectedEmployee.leaveBalances?.[formData.type] || 0);
     }
-  }, [user, userIsAdmin, activeEmployees]); // Ensure activeEmployees is a dependency
+  }, [user, userIsAdmin, employeeOptions, formData.employeeId, selectedEmployee, leavePolicies]);
 
-  const leaveTypeOptions = useMemo(() => [
-    { value: 'Vacation', label: t('leave.vacation') || 'Vacation' },
-    { value: 'Sick', label: t('leave.sick') || 'Sick' },
-    { value: 'Personal', label: t('leave.personal') || 'Personal' },
-  ], [t]);
+
+  // MODIFIED: Leave type options from fetched policies
+  const leaveTypeOptions = useMemo(() => {
+    // Filter policies applicable to the selected employee's role, or all if no employee selected
+    const employeeRoles = selectedEmployee ? [selectedEmployee.role] : [];
+    
+    return leavePolicies
+        .filter(policy => policy.applicableRoles.length === 0 || employeeRoles.some(role => policy.applicableRoles.includes(role)))
+        .map(policy => ({ value: policy.name, label: policy.name }));
+  }, [leavePolicies, selectedEmployee]);
+
 
   // Calculate requested days and update balances whenever dates or type change
   useEffect(() => {
-    if (formData.startDate && formData.endDate && formData.type && selectedEmployee) {
-      const start = new Date(formData.startDate);
-      const end = new Date(formData.endDate);
-      const diffTime = Math.abs(end.getTime() - start.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end day
-
-      if (diffDays > 0) {
-        setRequestedDays(diffDays);
-
-        let balance = 0;
-        switch(formData.type) {
-          case 'Vacation': balance = selectedEmployee.vacationBalance; break;
-          case 'Sick': balance = selectedEmployee.sickBalance; break;
-          case 'Personal': balance = selectedEmployee.personalBalance; break;
-          default: balance = 0; // Should not happen with validation
-        }
-        setCurrentBalance(balance);
-        setProjectedBalance(balance - diffDays);
-      } else {
-        setRequestedDays(0);
-        setCurrentBalance(0);
-        setProjectedBalance(0);
-      }
-    } else {
-      setRequestedDays(0);
-      setCurrentBalance(0);
+    const calculateAndFetchHolidays = async () => {
+      const { startDate, endDate, employeeId } = formData;
+      setHolidaysInRange([]);
+      setCalculatedWorkingDays(0);
+      setCurrentLeaveBalance(0);
       setProjectedBalance(0);
-    }
-  }, [formData.startDate, formData.endDate, formData.type, selectedEmployee]);
+
+      if (startDate && endDate && employeeId && selectedEmployee) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+
+        if (start && end && start <= end) {
+          setCalculationLoading(true);
+          try {
+            const fetchedHolidays = await fetchData(`/holidays?startDate=${startDate}&endDate=${endDate}`);
+            if (fetchedHolidays) {
+                setHolidaysInRange(fetchedHolidays);
+            }
+
+            const result = await fetchData(`/leave-requests/calculate-days?startDate=${startDate}&endDate=${endDate}`);
+            if (result && typeof result.workingDays === 'number') {
+              setCalculatedWorkingDays(result.workingDays);
+              
+              let balance = selectedEmployee.leaveBalances?.[formData.type] || 0; // Use dynamic balance from employee entity
+              setCurrentBalance(balance);
+              setProjectedBalance(balance - result.workingDays);
+
+            } else {
+              setCalculatedWorkingDays(0);
+            }
+          } catch (error) {
+            setCalculatedWorkingDays(0);
+            setHolidaysInRange([]);
+            setCurrentLeaveBalance(0);
+            setProjectedBalance(0);
+          } finally {
+            setCalculationLoading(false);
+          }
+        } else {
+          setCalculatedWorkingDays(0);
+        }
+      }
+    };
+    calculateAndFetchHolidays();
+  }, [formData.startDate, formData.endDate, formData.type, formData.employeeId, selectedEmployee, fetchData]);
 
   const handleInputChange = useCallback((e) => {
     const { name, value } = e.target;
@@ -92,33 +137,51 @@ const LeaveRequestForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
+    setIsSubmitting(true);
 
     const { employeeId, type, startDate, endDate, reason } = formData;
 
     if (!employeeId || !type || !startDate || !endDate || !reason) {
       showMessage(t('common.allFields'), 'error');
-      setIsLoading(false);
+      setIsSubmitting(false);
       return;
     }
 
-    if (projectedBalance < 0) {
-      showMessage(`Insufficient ${type} days. You only have ${currentBalance} days.`, 'error');
-      setIsLoading(false);
+    // Enhanced check for leave balance based on actual calculated working days
+    if (calculatedWorkingDays > currentLeaveBalance) { // Use calculatedWorkingDays
+      showMessage(t('leave.insufficientDays', { type: t(`leave.${type.toLowerCase()}`), currentBalance, requestedDays: calculatedWorkingDays }), 'error');
+      setIsSubmitting(false);
       return;
     }
     
     const payload = { employeeId, type, startDate, endDate, reason };
     
-    const result = await postData('/leave-requests', payload, 'Leave request submitted successfully!', 'Failed to submit leave request');
+    const result = await postData('/leave-requests', payload, t('leave.requestSuccess'), t('leave.requestError'));
 
     if (result) {
       await fetchLeaveRequests();
       setCurrentPage('leave');
     }
     
-    setIsLoading(false);
+    setIsSubmitting(false);
   };
+
+  const handleCancel = useCallback(() => {
+    setCurrentPage('leave');
+  }, [setCurrentPage]);
+
+  // Filter upcoming holidays that are not yet passed and are within the selected employee's policy type
+  const upcomingHolidays = useMemo(() => {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    const relevantPolicyNames = leavePolicies.map(p => p.name); // All defined policy names
+
+    return holidaysInRange
+      .filter(h => new Date(h.date) >= today && relevantPolicyNames.includes(h.name)) // Only show future/today holidays and ensure holiday name matches a policy name
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [holidaysInRange, leavePolicies]);
+
 
   return (
     <div className="space-y-6">
@@ -131,7 +194,7 @@ const LeaveRequestForm = () => {
               name="employeeId"
               value={formData.employeeId}
               onChange={handleInputChange}
-              options={activeEmployees} // activeEmployees used here
+              options={employeeOptions}
               required
             />
           ) : (
@@ -145,8 +208,9 @@ const LeaveRequestForm = () => {
             name="type"
             value={formData.type}
             onChange={handleInputChange}
-            options={leaveTypeOptions}
+            options={leaveTypeOptions} // Now dynamic based on policies
             required
+            disabled={leaveTypeOptions.length === 0 && !calculationLoading} // Disable if no policies loaded yet
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
@@ -166,41 +230,83 @@ const LeaveRequestForm = () => {
               required
             />
           </div>
-          {selectedEmployee && requestedDays > 0 && (
-            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-              <h3 className="text-md font-semibold text-blue-800 mb-2">Leave Impact Preview</h3>
-              <p className="text-sm text-blue-700">
-                You are requesting <span className="font-bold">{requestedDays}</span> days of <span className="font-bold">{formData.type}</span> leave.
+          {(formData.startDate && formData.endDate && formData.employeeId && selectedEmployee) && (
+            <div className="text-sm text-gray-700 mt-2 p-3 bg-gray-50 rounded-md border border-gray-200">
+              <p>
+                {t('leave.calculatedWorkingDays')}:{' '}
+                {calculationLoading ? (
+                  <span className="font-semibold text-gray-500">{t('leave.calculatingDays')}...</span>
+                ) : (
+                  <span className="font-semibold text-blue-700">{calculatedWorkingDays}</span>
+                )}{' '}
+                {t('common.days')}
               </p>
-              <ul className="text-sm text-blue-700 mt-2">
-                <li>Current {formData.type} Balance: <span className="font-bold">{currentBalance}</span> days</li>
-                <li>Projected {formData.type} Balance after approval: <span className={`font-bold ${projectedBalance < 0 ? 'text-red-600' : 'text-green-600'}`}>{projectedBalance}</span> days</li>
-              </ul>
-              {projectedBalance < 0 && (
-                <p className="text-red-600 text-xs mt-2">
-                  Warning: This request exceeds your available leave balance!
+              <p className="mt-1">
+                {t('leave.currentBalance', { type: formData.type })}:{' '} {/* Added type for balance display */}
+                <span className="font-semibold">{currentLeaveBalance}</span>{' '}
+                {t('common.days')} ({t('leave.projectedBalance')}:{' '}
+                <span className={`font-semibold ${projectedBalance < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  {projectedBalance}
+                </span>{' '}
+                {t('common.days')})
+              </p>
+              {calculatedWorkingDays > 0 && holidaysInRange.length > 0 && (
+                <div className="mt-2 text-yellow-800 text-xs">
+                  <p className="font-semibold">{t('leave.daysExcluded')}:</p>
+                  <ul className="list-disc list-inside">
+                    {holidaysInRange.map(h => (
+                      <li key={h.id}>
+                        {t('leave.holidayNotice', { date: new Date(h.date).toLocaleDateString(), name: h.name })}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {/* This logic needs to determine if ANY weekend was in range and excluded, not if all days were working days */}
+              {calculatedWorkingDays > 0 && (calculatedWorkingDays < ((new Date(formData.endDate).getTime() - new Date(formData.startDate).getTime()) / (1000 * 60 * 60 * 24) + 1) - holidaysInRange.length) && (
+                <p className="mt-2 text-green-700 text-xs">
+                    {t('leave.weekendsExcludedNotice')}
                 </p>
               )}
             </div>
           )}
+
           <TextArea
             label={t('leave.reason')}
             name="reason"
             value={formData.reason}
             onChange={handleInputChange}
-            placeholder="Please provide a reason for your leave request..."
+            placeholder={t('leave.reasonPlaceholder')}
+            rows="3"
             required
           />
           <div className="flex justify-end space-x-2">
-            <Button type="button" variant="secondary" onClick={() => setCurrentPage('leave')}>
+            <Button type="button" variant="secondary" onClick={handleCancel}>
               {t('common.cancel')}
             </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? t('common.loading') : t('common.submit')}
+            <Button type="submit" disabled={isSubmitting || calculationLoading}>
+              {isSubmitting ? t('common.loading') : t('common.submit')}
             </Button>
           </div>
         </form>
       </Card>
+
+      {/* NEW: Upcoming Holidays for Selected Employee */}
+      {(selectedEmployee && upcomingHolidays.length > 0) && (
+        <Card title={t('holidays.upcomingForEmployee', { employeeName: selectedEmployee.firstName })}>
+          <div className="space-y-2">
+            {upcomingHolidays.map(holiday => (
+              <div key={holiday.id} className="flex items-center space-x-3 p-2 bg-gray-50 rounded-lg">
+                <CalendarIcon className="w-5 h-5 text-blue-500" />
+                <div>
+                  <p className="font-medium text-gray-800">{new Date(holiday.date).toLocaleDateString()}</p>
+                  <p className="text-sm text-gray-600">{holiday.name} ({holiday.isPublic ? t('holidays.public') : t('common.private')})</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   );
 };

@@ -1,63 +1,71 @@
+// hrms-backend/src/tenant/tenant.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
 import { Employee } from '../employee/employee.entity';
-import { OnboardingTask } from '../onboarding-task/onboarding-task.entity'; // NEW IMPORT
-import { Document } from '../document/document.entity'; // NEW IMPORT
-import { LeaveRequest } from '../leave-request/leave-request.entity'; // Add this import
-import { Timesheet } from '../timesheet/timesheet.entity'; // Add this import
-import { Goal } from '../goal/goal.entity'; // Add this import
-import { Review } from '../review/review.entity'; // Add this import
-import { Announcement } from '../announcement/announcement.entity'; // Add this import
-import { Recognition } from '../recognition/recognition.entity'; // Add this import
-import { User } from '../user/user.entity'; // Add this import
+import { OnboardingTask } from '../onboarding-task/onboarding-task.entity';
+import { Document } from '../document/document.entity';
+import { LeaveRequest } from '../leave-request/leave-request.entity';
+import { Timesheet } from '../timesheet/timesheet.entity';
+import { Goal } from '../goal/goal.entity';
+import { Review } from '../review/review.entity';
+import { Announcement } from '../announcement/announcement.entity';
+import { Recognition } from '../recognition/recognition.entity';
+import { User } from '../user/user.entity';
+import { Holiday } from '../holiday/holiday.entity';
+import { LeavePolicy } from '../leave-policy/leave-policy.entity'; // NEW: Import LeavePolicy entity
 
-
-@Entity('tenants') // This is the name of the table in your PostgreSQL database
+@Entity('tenants')
 export class Tenant {
-  @PrimaryGeneratedColumn('uuid') // Automatically generates a unique identifier (UUID) for each tenant
+  @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ unique: true }) // Ensures each tenant name is unique
-  name: string; // The name of the company (e.g., "Acme Corp")
+  @Column({ unique: true })
+  name: string;
 
-  @Column({ default: 'active' }) // Current status of the tenant (e.g., 'active', 'inactive')
+  @Column({ default: 'active' })
   status: string;
 
-  @Column({ nullable: true }) // Optional contact email for the tenant
+  @Column({ nullable: true })
   contactEmail: string;
 
   @OneToMany(() => Employee, employee => employee.tenant)
-  employees: Employee[]; // Defines the one-to-many relationship with employees
+  employees: Employee[];
 
-  @OneToMany(() => OnboardingTask, onboardingTask => onboardingTask.tenant) // NEW: Define relationship to OnboardingTasks
+  @OneToMany(() => OnboardingTask, onboardingTask => onboardingTask.tenant)
   onboardingTasks: OnboardingTask[];
 
-  @OneToMany(() => Document, document => document.tenant) // NEW: Define relationship to Documents
+  @OneToMany(() => Document, document => document.tenant)
   documents: Document[];
 
-  @OneToMany(() => LeaveRequest, leaveRequest => leaveRequest.tenant) // Add this line
+  @OneToMany(() => LeaveRequest, leaveRequest => leaveRequest.tenant)
   leaveRequests: LeaveRequest[];
 
-  @OneToMany(() => Timesheet, timesheet => timesheet.tenant) // Add this line
+  @OneToMany(() => Timesheet, timesheet => timesheet.tenant)
   timesheets: Timesheet[];
 
-  @OneToMany(() => Goal, goal => goal.tenant) // Add this line
+  @OneToMany(() => Goal, goal => goal.tenant)
   goals: Goal[];
 
-  @OneToMany(() => Review, review => review.tenant) // Add this line
+  @OneToMany(() => Review, review => review.tenant)
   reviews: Review[];
 
-  @OneToMany(() => Announcement, announcement => announcement.tenant) // Add this line
+  @OneToMany(() => Announcement, announcement => announcement.tenant)
   announcements: Announcement[];
 
-  @OneToMany(() => Recognition, recognition => recognition.tenant) // Add this line
+  @OneToMany(() => Recognition, recognition => recognition.tenant)
   recognitions: Recognition[];
 
-  @OneToMany(() => User, user => user.tenant) // Add this line
+  @OneToMany(() => User, user => user.tenant)
   users: User[];
 
-  @CreateDateColumn() // Automatically sets the creation timestamp
+  @OneToMany(() => Holiday, holiday => holiday.tenant)
+  holidays: Holiday[];
+
+  @OneToMany(() => LeavePolicy, leavePolicy => leavePolicy.tenant) // NEW: Add this relationship
+  leavePolicies: LeavePolicy[]; // NEW: Add this property
+
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn() // Automatically updates the timestamp on each update
+  @UpdateDateColumn()
   updatedAt: Date;
 }

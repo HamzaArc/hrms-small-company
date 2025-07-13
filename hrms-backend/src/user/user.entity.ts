@@ -30,6 +30,9 @@ export class User {
   @Column({ default: 'employee' }) // Role: 'admin', 'hr', 'employee'
   role: string;
 
+  @Column({ default: false }) // NEW: Flag to indicate if email is verified/initial setup complete
+  isEmailVerified: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 
